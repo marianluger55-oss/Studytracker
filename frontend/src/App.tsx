@@ -1,0 +1,226 @@
+/*
+ * App.tsx
+ * ─────────────────────────────────────────────────────────────
+ * Wurzelkomponente — steuert Layout, Theme, Auth und Navigation.
+ *
+ * Routing-Architektur:
+ *  /login, /register      → Öffentlich (kein Layout, kein Auth-Check)
+ *  Alle anderen Routen    → Durch ProtectedRoute geschützt (brauchen Login)
+ *
+ * TanStack Query:
+ *  QueryClientProvider umschließt die gesamte App — alle Komponenten
+ *  können useQuery/useMutation ohne eigenes Setup verwenden.
+ *
+ * AuthInitializer:
+ *  Führt beim ersten Render den Refresh-Token-Versuch durch.
+ *  Muss innerhalb von BrowserRouter liegen (braucht navigate).
+ *
+ * Lazy Loading:
+ *  Seiten werden erst geladen wenn sie zum ersten Mal aufgerufen werden.
+ *  Reduziert das initiale Bundle-Gewicht der App.
+ *
+ * ErrorBoundary:
+ *  Fängt unbehandelte JS-Fehler innerhalb einer Route und zeigt
+ *  eine Fallback-UI statt einem leeren Bildschirm.
+ * ─────────────────────────────────────────────────────────────
+ */
+
+// Router-Importe
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
+// React Hooks + Lazy Loading
+import { useEffect, useState, lazy, Suspense } from 'react';
+
+// TanStack Query — Server-State-Verwaltung
+import { QueryClientProvider } from '@tanstack/react-query';
+
+// App-Infrastruktur
+import { queryClient }     from './lib/queryClient';
+import { useSettingsStore } from './store/settingsStore';
+
+// Auth-Komponenten
+import AuthInitializer from './components/auth/AuthInitializer';
+import ProtectedRoute  from './components/auth/ProtectedRoute';
+import ErrorBoundary   from './components/ErrorBoundary';
+
+// Navigations-Komponenten
+import Sidebar from './components/navigation/Sidebar';
+
+// Auth-Seiten werden direkt importiert (klein, immer benötigt)
+import Login          from './pages/Auth/Login';
+import Register       from './pages/Auth/Register';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword  from './pages/Auth/ResetPassword';
+
+// App-Seiten werden lazy geladen — nur wenn die Route aufgerufen wird
+// lazy(): lädt das Modul erst beim ersten Besuch dieser Route
+const Dashboard  = lazy(() => import('./pages/Dashboard/Dashboard'));
+const Timer      = lazy(() => import('./pages/Timer/Timer'));
+const Statistics = lazy(() => import('./pages/Statistics/Statistics'));
+const Categories = lazy(() => import('./pages/Categories/Categories'));
+const Goals      = lazy(() => import('./pages/Goals/Goals'));
+const Settings   = lazy(() => import('./pages/Settings/Settings'));
+
+// Legal-Seiten (selten besucht → ideal für Lazy Loading)
+const Impressum   = lazy(() => import('./pages/Legal/Impressum'));
+const Datenschutz = lazy(() => import('./pages/Legal/Datenschutz'));
+const AGB         = lazy(() => import('./pages/Legal/AGB'));
+
+/* ── Lade-Fallback für Suspense ──────────────────────────────── */
+// Wird kurz angezeigt während eine lazy-geladene Seite heruntergeladen wird
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      {/* Dezenter rotierender Ring — passt zum Design-System */}
+      <div
+        className="w-6 h-6 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin"
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Haupt-App-Layout (für eingeloggte Benutzer)
+   ─────────────────────────────────────────────────────────────
+   Enthält: Sidebar + Mobile-Topbar + Hauptinhalt
+   ═══════════════════════════════════════════════════════════════ */
+function AppLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+
+  // navOpen: steuert die Mobile-Sidebar (geöffnet/geschlossen)
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Sidebar schließen wenn Route wechselt (nach Nav-Klick auf Mobile)
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  // Scroll auf der Seite sperren wenn Mobile-Nav offen ist
+  useEffect(() => {
+    document.body.style.overflow = navOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [navOpen]);
+
+  return (
+    <div className="app-shell">
+
+      {/* ── Mobile Topbar (nur < lg) ──────────────────────── */}
+      <header className="mobile-topbar lg:hidden">
+        {/* Hamburger-Button öffnet Sidebar */}
+        <button
+          type="button"
+          aria-label="Navigation öffnen"
+          onClick={() => setNavOpen(true)}
+          className="p-2 -ml-1 rounded-md text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[var(--bg-3)] transition-colors"
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-[18px] h-[18px]">
+            <path d="M2 4h12M2 8h12M2 12h8" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <span className="text-[0.8125rem] font-semibold tracking-tight text-[var(--text)]">
+          StudyTracker
+        </span>
+
+        {/* Platzhalter für optische Symmetrie */}
+        <div className="w-8" aria-hidden="true" />
+      </header>
+
+      {/* ── Sidebar ──────────────────────────────────────── */}
+      <Sidebar isOpen={navOpen} onClose={() => setNavOpen(false)} />
+
+      {/* ── Backdrop (Mobile) ────────────────────────────── */}
+      {navOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Hauptinhalt ──────────────────────────────────── */}
+      <main className="flex-1 pt-12 lg:pt-8 lg:ml-48 pb-5 lg:pb-8 px-4 sm:px-6 lg:px-10 min-w-0">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Innere App (hat Router-Kontext — braucht useLocation)
+   ═══════════════════════════════════════════════════════════════ */
+function AppInner() {
+  // Theme aus dem Settings-Store — wird auf <body> angewendet
+  const theme = useSettingsStore((s) => s.settings.theme);
+
+  // Theme-Klasse auf body setzen (CSS-Variablen reagieren darauf)
+  useEffect(() => {
+    document.body.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  return (
+    <>
+      {/* Auth-Initialisierung beim Start — prüft Refresh-Token-Cookie */}
+      <AuthInitializer />
+
+      <Routes>
+        {/* ── Öffentliche Auth-Seiten (kein Layout) ─────── */}
+        {/* Eigenes Layout ohne Sidebar — volle Seite für Login/Register */}
+        <Route path="/login"           element={<Login />}          />
+        <Route path="/register"        element={<Register />}       />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password"  element={<ResetPassword />}  />
+
+        {/* ── Legal-Seiten (öffentlich zugänglich) ─────── */}
+        {/* Suspense: zeigt PageLoader während das Modul geladen wird */}
+        <Route path="/impressum"   element={<Suspense fallback={<PageLoader />}><Impressum /></Suspense>}   />
+        <Route path="/datenschutz" element={<Suspense fallback={<PageLoader />}><Datenschutz /></Suspense>} />
+        <Route path="/agb"         element={<Suspense fallback={<PageLoader />}><AGB /></Suspense>}         />
+
+        {/* ── Geschützte App-Seiten (brauchen Login) ─────── */}
+        {/* ProtectedRoute prüft Auth und zeigt Ladeindikator während Initialisierung */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                {/* Suspense auf Route-Ebene: einzelner Loader für alle geschützten Seiten */}
+                <Suspense fallback={<PageLoader />}>
+                  {/* ErrorBoundary: fängt Laufzeitfehler in Seiten-Komponenten */}
+                  <ErrorBoundary>
+                    <Routes>
+                      <Route path="/"           element={<Dashboard />}  />
+                      <Route path="/timer"      element={<Timer />}       />
+                      <Route path="/statistics" element={<Statistics />}  />
+                      <Route path="/categories" element={<Categories />}  />
+                      <Route path="/goals"      element={<Goals />}       />
+                      <Route path="/settings"   element={<Settings />}    />
+                      {/* Unbekannte Routen → Dashboard */}
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </ErrorBoundary>
+                </Suspense>
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Wurzelkomponente — Provider-Baum
+   ═══════════════════════════════════════════════════════════════ */
+export default function App() {
+  return (
+    // QueryClientProvider muss die gesamte App umschließen
+    <QueryClientProvider client={queryClient}>
+      {/* BrowserRouter stellt Router-Kontext für alle Kind-Komponenten bereit */}
+      <BrowserRouter>
+        <AppInner />
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}

@@ -1,0 +1,37 @@
+# Abhängigkeiten
+node_modules/
+**/node_modules/
+
+# Build-Ausgabe
+dist/
+**/dist/
+build/
+**/build/
+
+# Umgebungsvariablen — NIEMALS committen
+.env
+**/.env
+# .env.example ist erlaubt (kein echtes Secret)
+
+# Logs
+*.log
+logs/
+
+# Test-Coverage
+coverage/
+.nyc_output/
+
+# TypeScript Compile-Cache
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.sw?
+
+# Claude Code (lokale KI-Daten — nicht für Git)
+.claude/

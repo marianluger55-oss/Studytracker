@@ -1,0 +1,80 @@
+# docker-compose.yml
+# ─────────────────────────────────────────────────────────────
+# Startet die gesamte StudyTracker-Infrastruktur lokal.
+#
+# Dienste:
+#  - postgres  → Datenbank (Port 5432)
+#  - backend   → Express-API (Port 3001)
+#  - frontend  → Vite Dev Server (Port 5173)
+#
+# Starten:  docker compose up -d
+# Stoppen:  docker compose down
+# Logs:     docker compose logs -f backend
+# ─────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL Datenbank ────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine      # Alpine = kleineres Image
+    container_name: studytracker-db
+    restart: unless-stopped        # Neustart bei Absturz, nicht bei manuell stop
+    environment:
+      POSTGRES_DB:       studytracker
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}  # Pflichtfeld — muss in .env gesetzt werden
+    # Kein Port-Mapping für PostgreSQL — nur Backend-Container darf zugreifen (SEC-04)
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Daten persistent speichern
+    healthcheck:                   # Docker wartet bis DB bereit ist
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studytracker"]
+      interval: 5s
+      timeout:  5s
+      retries:  10
+
+  # ── Express Backend ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend           # Dockerfile-Verzeichnis
+      dockerfile: Dockerfile
+    container_name: studytracker-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy # Erst starten wenn DB bereit
+    environment:
+      NODE_ENV:       development
+      PORT:           3001
+      DATABASE_URL:   postgresql://postgres:${DB_PASSWORD}@postgres:5432/studytracker
+      JWT_SECRET:     ${JWT_SECRET}   # Pflichtfeld — muss in .env gesetzt werden (SEC-02)
+      JWT_EXPIRES_IN: 15m          # Access Token: 15 Minuten
+      CORS_ORIGIN:    http://localhost:5173
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src:ro  # Source-Code einbinden (read-only)
+    command: npm run dev
+
+  # ── React Frontend ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: studytracker-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src:ro
+    command: npm run dev -- --host  # --host: außerhalb des Containers erreichbar
+
+# ── Persistente Volumes ────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local  # Lokales Volume — Daten bleiben auch nach Container-Neustart

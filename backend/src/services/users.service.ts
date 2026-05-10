@@ -1,0 +1,98 @@
+/*
+ * services/users.service.ts
+ * Benutzerprofil-Verwaltung.
+ */
+
+import bcrypt      from 'bcryptjs';
+import { pool }    from '../db/pool';
+import { UserRow } from '../types';
+import { AppError } from '../middleware/errorHandler';
+
+/* ── updateProfile ─────────────────────────────────────────────── */
+export async function updateProfile(
+  userId: number,
+  data: { username?: string; email?: string }
+) {
+  // Nur Felder setzen die wirklich übergeben wurden
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (data.username !== undefined) {
+    fields.push(`username = $${idx++}`);
+    values.push(data.username.trim());
+  }
+  if (data.email !== undefined) {
+    const email = data.email.toLowerCase().trim();
+    // Prüfen ob E-Mail schon vergeben ist (nicht von diesem User)
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL',
+      [email, userId]
+    );
+    if (existing.rows.length > 0) throw new AppError(409, 'E-Mail bereits in Verwendung');
+    fields.push(`email = $${idx++}`);
+    values.push(email);
+  }
+
+  if (fields.length === 0) throw new AppError(400, 'Keine Felder zum Aktualisieren angegeben');
+
+  fields.push(`updated_at = NOW()`);
+  values.push(userId);
+
+  const result = await pool.query<UserRow>(
+    `UPDATE users SET ${fields.join(', ')}
+     WHERE id = $${idx} AND deleted_at IS NULL
+     RETURNING id, email, username, created_at, password_hash`,
+    values
+  );
+  if (!result.rows[0]) throw new AppError(404, 'Benutzer nicht gefunden');
+
+  const { password_hash: _, ...safe } = result.rows[0];
+  return safe;
+}
+
+/* ── changePassword ────────────────────────────────────────────── */
+export async function changePassword(
+  userId: number,
+  currentPassword: string,
+  newPassword: string
+) {
+  const result = await pool.query<UserRow>(
+    'SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [userId]
+  );
+  const user = result.rows[0];
+  if (!user) throw new AppError(404, 'Benutzer nicht gefunden');
+
+  const valid = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!valid) throw new AppError(401, 'Aktuelles Passwort falsch');
+
+  const newHash = await bcrypt.hash(newPassword, 12);
+  await pool.query(
+    'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+    [newHash, userId]
+  );
+}
+
+/* ── deleteAccount ─────────────────────────────────────────────── */
+// Soft-Delete: Daten werden markiert, nicht sofort gelöscht (DSGVO-Frist)
+export async function deleteAccount(userId: number, password: string) {
+  const result = await pool.query<UserRow>(
+    'SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [userId]
+  );
+  const user = result.rows[0];
+  if (!user) throw new AppError(404, 'Benutzer nicht gefunden');
+
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) throw new AppError(401, 'Passwort falsch');
+
+  // Alle Tokens sofort invalidieren
+  await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+
+  // Soft-Delete
+  await pool.query(
+    'UPDATE users SET deleted_at = NOW() WHERE id = $1',
+    [userId]
+  );
+}

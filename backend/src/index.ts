@@ -1,0 +1,177 @@
+import 'dotenv/config';
+import path           from 'path';
+import express        from 'express';
+import cors           from 'cors';
+import helmet         from 'helmet';
+import cookieParser   from 'cookie-parser';
+
+import { config }              from './config/env';
+import { logger }              from './utils/logger';
+import { errorHandler }        from './middleware/errorHandler';
+import { generalLimiter }      from './middleware/rateLimiter';
+import { requestIdMiddleware }  from './middleware/requestId';
+import { initSentry }           from './utils/monitoring';
+import { checkDbConnection }    from './db/pool';
+
+/* Sentry muss vor allem anderen initialisiert werden */
+initSentry();
+
+import authRoutes          from './routes/auth.routes';
+import sessionsRoutes      from './routes/sessions.routes';
+import categoriesRoutes    from './routes/categories.routes';
+import statsRoutes         from './routes/stats.routes';
+import goalsRoutes         from './routes/goals.routes';
+import usersRoutes         from './routes/users.routes';
+import achievementsRoutes  from './routes/achievements.routes';
+
+const app = express();
+
+/* ── Request-ID ──────────────────────────────────────────────────
+   Erste Middleware — jede Anfrage bekommt eine UUID.
+   Wird automatisch in alle Log-Zeilen dieser Anfrage eingebettet.  */
+app.use(requestIdMiddleware);
+
+/* ── Security Headers (Helmet) ───────────────────────────────────  */
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", 'data:', 'blob:'],
+      connectSrc:  ["'self'"],
+      fontSrc:     ["'self'"],
+      objectSrc:   ["'none'"],
+      mediaSrc:    ["'none'"],
+      frameSrc:    ["'none'"],
+      upgradeInsecureRequests: config.isProduction ? [] : null,
+    } as Record<string, string[] | null>,
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+/* ── CORS ────────────────────────────────────────────────────────
+   In Production (Railway): Frontend wird von Express selbst bedient
+   → kein Cross-Origin nötig, aber corsOrigin bleibt konfigurierbar
+   für den Fall eines separaten Frontend-Deployments.               */
+app.use(cors({
+  origin:         config.corsOrigin,
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(cookieParser());
+app.use(express.json({ limit: '10kb' }));
+
+/* ── Request-Logging ─────────────────────────────────────────────  */
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    logger.info('Request', {
+      method: req.method,
+      path:   req.path,
+      status: res.statusCode,
+      ms,
+    });
+  });
+  next();
+});
+
+/* ── Rate-Limiting ───────────────────────────────────────────────  */
+app.use('/api', generalLimiter);
+
+/* ── Health-Checks ───────────────────────────────────────────────
+   Müssen VOR den API-Routen stehen damit Railway den Check findet. */
+app.get('/health', (_req, res) => {
+  res.json({
+    status:    'ok',
+    timestamp: new Date().toISOString(),
+    uptime:    Math.floor(process.uptime()),
+    env:       config.nodeEnv,
+  });
+});
+
+/* /health/db: prüft ob die Datenbank erreichbar ist */
+app.get('/health/db', async (_req, res) => {
+  const { ok, latencyMs } = await checkDbConnection();
+  res.status(ok ? 200 : 503).json({
+    status:    ok ? 'ok' : 'unreachable',
+    latencyMs,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/* ── API-Routen ──────────────────────────────────────────────────  */
+app.use('/api/auth',         authRoutes);
+app.use('/api/sessions',    sessionsRoutes);
+app.use('/api/categories',  categoriesRoutes);
+app.use('/api/stats',       statsRoutes);
+app.use('/api/goals',       goalsRoutes);
+app.use('/api/users',       usersRoutes);
+app.use('/api/achievements', achievementsRoutes);
+
+/* ── Frontend Static-File Serving (Production / Railway) ─────────
+   In Production wird das gebaute React-Frontend aus dem public/-
+   Verzeichnis ausgeliefert. Vite baut nach /public beim Docker-Build.
+   SPA-Fallback: Alle Nicht-API-Routen liefern index.html aus,
+   damit React Router clientseitig die Navigation übernimmt.         */
+if (config.isProduction) {
+  const publicDir = path.join(__dirname, '..', 'public');
+
+  app.use(express.static(publicDir, {
+    maxAge:  '1y',   // Statische Assets lang cachen (Vite-Hashes)
+    etag:    true,
+    index:   false,  // SPA-Fallback unten übernimmt index.html
+  }));
+
+  // SPA-Fallback: index.html für alle Nicht-API-Anfragen
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      next();
+      return;
+    }
+    res.sendFile(path.join(publicDir, 'index.html'));
+  });
+} else {
+  /* ── 404 in Development ────────────────────────────────────── */
+  app.use((_req, res) => {
+    res.status(404).json({ error: 'Endpunkt nicht gefunden' });
+  });
+}
+
+/* ── Zentraler Error-Handler ─────────────────────────────────────
+   MUSS als letztes registriert sein — fängt alle next(err) ab.      */
+app.use(errorHandler);
+
+/* ── Server starten ──────────────────────────────────────────────  */
+const server = app.listen(config.port, () => {
+  logger.info('StudyTracker-Backend gestartet', {
+    port: config.port,
+    env:  config.nodeEnv,
+  });
+});
+
+/* ── Graceful Shutdown ───────────────────────────────────────────
+   Bei SIGTERM (Railway Deployment): laufende Requests abschließen.  */
+function shutdown(signal: string): void {
+  logger.info(`Signal empfangen: ${signal} — Server wird beendet`);
+  server.close(() => {
+    logger.info('Server gestoppt');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    logger.warn('Graceful Shutdown Timeout — hart beenden');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unbehandelte Promise-Ablehnung', { reason: String(reason) });
+});
+
+export default app;

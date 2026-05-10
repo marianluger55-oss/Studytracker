@@ -1,0 +1,268 @@
+/*
+ * pages/Settings/Settings.tsx
+ *
+ * Backend-Anbindung:
+ *  - Profil (Username/E-Mail): PUT /api/users/profile via useMutation
+ *  - Passwort ändern:          PUT /api/users/password via useMutation
+ *  - Löscht Refresh-Sessions nach Passwortänderung automatisch (Backend)
+ *
+ * Timer-Einstellungen: lokal in settingsStore (keine Backend-Relevanz)
+ * Daten-Export: client-seitig, kein Backend nötig
+ */
+
+import { useState, useEffect }         from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { useSettingsStore } from '../../store/settingsStore';
+import { useAuthStore }     from '../../store/authStore';
+import { useSessions }      from '../../hooks/useSessions';
+import { useCategories }    from '../../hooks/useCategories';
+import apiClient            from '../../services/apiClient';
+import type { User }        from '../../types';
+
+/* ── Typen ──────────────────────────────────────────────────── */
+interface ProfilePayload   { username?: string; email?: string }
+interface PasswordPayload  { currentPassword: string; newPassword: string }
+
+/* ── Timer-Felder ───────────────────────────────────────────── */
+const TIMER_FIELDS = [
+  { key: 'pomodoroLength', label: 'Pomodoro',    id: 'pomodoro-len' },
+  { key: 'shortBreak',     label: 'Kurze Pause', id: 'short-break'  },
+  { key: 'longBreak',      label: 'Lange Pause', id: 'long-break'   },
+] as const;
+
+export default function Settings() {
+  const { settings, updateSettings } = useSettingsStore();
+  const { user, setAuth, accessToken } = useAuthStore();
+  const { sessions }   = useSessions();
+  const { categories } = useCategories();
+  const queryClient    = useQueryClient();
+
+  /* ── Lokaler Profil-State (Pre-filled vom Auth-Store) ──── */
+  const [username,   setUsername]   = useState(user?.username ?? '');
+  const [email,      setEmail]      = useState(user?.email    ?? '');
+  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  /* ── Passwort-State ─────────────────────────────────────── */
+  const [currentPw,  setCurrentPw]  = useState('');
+  const [newPw,      setNewPw]      = useState('');
+  const [confirmPw,  setConfirmPw]  = useState('');
+  const [pwMsg,      setPwMsg]      = useState<{ ok: boolean; text: string } | null>(null);
+
+  /* Wenn user sich ändert (z.B. nach Refresh) Felder synchronisieren */
+  useEffect(() => {
+    if (user) {
+      setUsername(user.username);
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  /* ── Profil-Mutation ────────────────────────────────────── */
+  const profileMutation = useMutation({
+    mutationFn: async (payload: ProfilePayload) => {
+      const { data } = await apiClient.put<{ user: User }>('/users/profile', payload);
+      return data.user;
+    },
+    onSuccess: (updatedUser) => {
+      /* Auth-Store mit aktualisierten Daten überschreiben */
+      if (accessToken) setAuth(updatedUser, accessToken);
+      /* Einstellungen für konsistente UI-Anzeige synchronisieren */
+      updateSettings({ username: updatedUser.username, email: updatedUser.email });
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      setProfileMsg({ ok: true, text: 'Profil gespeichert.' });
+      setTimeout(() => setProfileMsg(null), 3000);
+    },
+    onError: (err: unknown) => {
+      const msg = extractErrorMessage(err, 'Profil konnte nicht gespeichert werden.');
+      setProfileMsg({ ok: false, text: msg });
+    },
+  });
+
+  /* ── Passwort-Mutation ──────────────────────────────────── */
+  const passwordMutation = useMutation({
+    mutationFn: async (payload: PasswordPayload) => {
+      await apiClient.put('/users/password', payload);
+    },
+    onSuccess: () => {
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+      setPwMsg({ ok: true, text: 'Passwort geändert. Bitte melde dich erneut an.' });
+      /* Backend invalidiert alle Refresh-Tokens — Auth-State lokal clearen */
+      setTimeout(() => {
+        useAuthStore.getState().clearAuth();
+        window.location.href = '/login';
+      }, 2000);
+    },
+    onError: (err: unknown) => {
+      const msg = extractErrorMessage(err, 'Passwort konnte nicht geändert werden.');
+      setPwMsg({ ok: false, text: msg });
+    },
+  });
+
+  /* ── Handler ────────────────────────────────────────────── */
+  const handleSaveProfile = () => {
+    if (!username.trim()) {
+      setProfileMsg({ ok: false, text: 'Benutzername darf nicht leer sein.' });
+      return;
+    }
+    profileMutation.mutate({ username: username.trim(), email: email.trim() });
+  };
+
+  const handleChangePassword = () => {
+    if (!currentPw || !newPw) {
+      setPwMsg({ ok: false, text: 'Bitte alle Felder ausfüllen.' });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwMsg({ ok: false, text: 'Neue Passwörter stimmen nicht überein.' });
+      return;
+    }
+    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/[0-9]/.test(newPw)) {
+      setPwMsg({ ok: false, text: 'Passwort: min. 8 Zeichen, 1 Großbuchstabe, 1 Zahl.' });
+      return;
+    }
+    passwordMutation.mutate({ currentPassword: currentPw, newPassword: newPw });
+  };
+
+  /* ── Export ─────────────────────────────────────────────── */
+  const handleExport = () => {
+    const blob = new Blob(
+      [JSON.stringify({ sessions, categories, settings, exportedAt: new Date().toISOString() }, null, 2)],
+      { type: 'application/json' }
+    );
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `studytracker-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /* ── JSX ─────────────────────────────────────────────────── */
+  return (
+    <div className="space-y-5">
+
+      <div>
+        <h1 className="page-title">Einstellungen</h1>
+        <p className="page-subtitle">Konfiguriere deinen Tracker.</p>
+      </div>
+
+      {/* ── Profil ──────────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Profil</p>
+        <div className="space-y-3 max-w-sm">
+          <div>
+            <label className="input-label" htmlFor="username">Benutzername</label>
+            <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Dein Name" className="input" />
+          </div>
+          <div>
+            <label className="input-label" htmlFor="email">E-Mail</label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="deine@email.de" className="input" />
+          </div>
+
+          {profileMsg && (
+            <p className={`text-sm ${profileMsg.ok ? 'text-green-500' : 'text-red-500'}`}>{profileMsg.text}</p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveProfile}
+            disabled={profileMutation.isPending}
+            className="btn-primary disabled:opacity-50"
+          >
+            {profileMutation.isPending ? 'Wird gespeichert…' : 'Profil speichern'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Passwort ─────────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Passwort ändern</p>
+        <div className="space-y-3 max-w-sm">
+          <div>
+            <label className="input-label" htmlFor="current-pw">Aktuelles Passwort</label>
+            <input id="current-pw" type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="input" autoComplete="current-password" />
+          </div>
+          <div>
+            <label className="input-label" htmlFor="new-pw">Neues Passwort</label>
+            <input id="new-pw" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} className="input" autoComplete="new-password" />
+          </div>
+          <div>
+            <label className="input-label" htmlFor="confirm-pw">Neues Passwort bestätigen</label>
+            <input id="confirm-pw" type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} className="input" autoComplete="new-password" />
+          </div>
+
+          {pwMsg && (
+            <p className={`text-sm ${pwMsg.ok ? 'text-green-500' : 'text-red-500'}`}>{pwMsg.text}</p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleChangePassword}
+            disabled={passwordMutation.isPending}
+            className="btn-primary disabled:opacity-50"
+          >
+            {passwordMutation.isPending ? 'Wird geändert…' : 'Passwort ändern'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Timer ────────────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Timer</p>
+        <div className="flex gap-4 flex-wrap">
+          {TIMER_FIELDS.map(({ key, label, id }) => (
+            <div key={key}>
+              <label className="input-label" htmlFor={id}>{label}</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id={id}
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={settings[key]}
+                  onChange={(e) => updateSettings({ [key]: Number(e.target.value) })}
+                  className="input w-20"
+                />
+                <span className="text-xs text-[var(--text-3)] flex-shrink-0">Min</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Daten ────────────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Daten</p>
+        <p className="text-sm text-[var(--text-2)] mb-4">
+          {sessions.length} Sessions · {categories.length} Fächer
+        </p>
+        <button type="button" onClick={handleExport} className="btn-ghost">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5">
+            <path d="M3 11v2a1 1 0 001 1h8a1 1 0 001-1v-2M8 3v8m-3-3l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Als JSON exportieren
+        </button>
+      </div>
+
+      {/* ── Über ─────────────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Über</p>
+        <div className="space-y-1 text-sm text-[var(--text-2)]">
+          <p>StudyTracker v1.0.0</p>
+          <p>React · TypeScript · Tailwind CSS</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Hilfsfunktion: Fehlermeldung aus Axios-Error extrahieren ── */
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const res = (err as { response?: { data?: { error?: { message?: string } } } }).response;
+    return res?.data?.error?.message ?? fallback;
+  }
+  return fallback;
+}
