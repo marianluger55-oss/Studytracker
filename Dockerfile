@@ -42,6 +42,9 @@ COPY backend/package*.json ./
 RUN npm ci --prefer-offline
 COPY backend/ ./
 RUN npm run build
+# SQL-Migrationsdateien neben den kompilierten JS-Dateien kopieren
+# (tsc ignoriert .sql-Dateien, migrate.js braucht sie aber zur Laufzeit)
+RUN cp -r src/db/migrations dist/db/
 
 # ── Stage 5: Production Runtime ─────────────────────────────────
 FROM node:20-alpine AS production
@@ -74,4 +77,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:' + (process.env.PORT||3001) + '/health', r => r.statusCode===200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"
 
-CMD ["node", "dist/index.js"]
+# Migrationen laufen vor dem Server-Start — idempotent und transaktional
+CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
