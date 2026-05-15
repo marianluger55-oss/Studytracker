@@ -11,7 +11,7 @@
 #  1. frontend-deps   → node_modules für Frontend cachen
 #  2. frontend-build  → Vite Build (VITE_API_URL=/api)
 #  3. backend-deps    → node_modules für Backend cachen
-#  4. backend-build   → TypeScript kompilieren
+#  4. backend-build   → TypeScript kompilieren + SQL-Files kopieren
 #  5. production      → Minimales Runtime-Image
 # ─────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@
 FROM node:20-alpine AS frontend-deps
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --prefer-offline
+RUN npm ci
 
 # ── Stage 2: Frontend Build ─────────────────────────────────────
 FROM frontend-deps AS frontend-build
@@ -29,17 +29,17 @@ ARG  VITE_API_URL=/api
 ENV  VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
-# ── Stage 3: Backend Dependencies ───────────────────────────────
+# ── Stage 3: Backend Dependencies (nur Production) ──────────────
 FROM node:20-alpine AS backend-deps
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm ci --omit=dev --prefer-offline && npm cache clean --force
+RUN npm ci --omit=dev
 
 # ── Stage 4: Backend Build ───────────────────────────────────────
 FROM node:20-alpine AS backend-build
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm ci --prefer-offline
+RUN npm ci
 COPY backend/ ./
 RUN npm run build
 # SQL-Migrationsdateien neben den kompilierten JS-Dateien kopieren
@@ -58,14 +58,18 @@ WORKDIR /app
 # Production node_modules aus Stage 3
 COPY --from=backend-deps  /app/backend/node_modules ./node_modules
 
-# Kompilierter Backend-Code aus Stage 4
+# Kompilierter Backend-Code + SQL-Migrations aus Stage 4
 COPY --from=backend-build /app/backend/dist ./dist
 
 # Frontend Static Files → Express bedient sie aus /app/public
 COPY --from=frontend-build /app/frontend/dist ./public
 
-# package.json für npm start
+# package.json für Metadaten
 COPY backend/package.json ./
+
+# Startup-Skript: Migrationen zuerst, dann Server
+COPY --chown=nodejs:nodejs docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 # Nicht-privilegierter Benutzer
 USER nodejs
@@ -74,8 +78,7 @@ USER nodejs
 EXPOSE 3001
 
 # Health Check — Railway erkennt wenn Service nicht antwortet
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://localhost:' + (process.env.PORT||3001) + '/health', r => r.statusCode===200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"
 
-# Migrationen laufen vor dem Server-Start — idempotent und transaktional
-CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
+CMD ["./docker-entrypoint.sh"]
