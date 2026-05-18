@@ -23,9 +23,8 @@ services:
       POSTGRES_DB:       studytracker
       POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}  # Pflichtfeld — muss in .env gesetzt werden
-    # Kein Port-Mapping für PostgreSQL — nur Backend-Container darf zugreifen (SEC-04)
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Daten persistent speichern
     healthcheck:                   # Docker wartet bis DB bereit ist

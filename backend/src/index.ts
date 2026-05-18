@@ -4,6 +4,7 @@ import path           from 'path';
 import express        from 'express';
 import cors           from 'cors';
 import helmet         from 'helmet';
+import compression    from 'compression';
 import cookieParser   from 'cookie-parser';
 
 import { config }              from './config/env';
@@ -26,6 +27,20 @@ import usersRoutes         from './routes/users.routes';
 import achievementsRoutes  from './routes/achievements.routes';
 
 const app = express();
+
+/* ── Compression ─────────────────────────────────────────────────
+   Gzip/Deflate-Komprimierung für alle Antworten über 1 KB.
+   Muss vor allen Routen stehen damit auch API-Responses komprimiert werden. */
+app.use(compression());
+
+/* ── Request Timeout ─────────────────────────────────────────────
+   30 Sekunden HTTP-Timeout — verhindert hängende Verbindungen. */
+app.use((_req, res, next) => {
+  res.setTimeout(30_000, () => {
+    res.status(408).json({ success: false, error: 'Request-Timeout' });
+  });
+  next();
+});
 
 /* ── Request-ID ──────────────────────────────────────────────────
    Erste Middleware — jede Anfrage bekommt eine UUID.

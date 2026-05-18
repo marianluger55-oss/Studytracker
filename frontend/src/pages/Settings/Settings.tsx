@@ -125,18 +125,23 @@ export default function Settings() {
     passwordMutation.mutate({ currentPassword: currentPw, newPassword: newPw });
   };
 
-  /* ── Export ─────────────────────────────────────────────── */
-  const handleExport = () => {
-    const blob = new Blob(
-      [JSON.stringify({ sessions, categories, settings, exportedAt: new Date().toISOString() }, null, 2)],
-      { type: 'application/json' }
-    );
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = `studytracker-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  /* ── Export (DSGVO Art. 20 — Datenportabilität) ────────── */
+  // Lädt alle Daten vom Backend herunter (vollständiger Export)
+  const [exportLoading, setExportLoading] = useState(false);
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const { data } = await apiClient.get('/users/export');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `studytracker-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   /* ── JSX ─────────────────────────────────────────────────── */
@@ -238,11 +243,16 @@ export default function Settings() {
         <p className="text-sm text-[var(--text-2)] mb-4">
           {sessions.length} Sessions · {categories.length} Fächer
         </p>
-        <button type="button" onClick={handleExport} className="btn-ghost">
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exportLoading}
+          className="btn-ghost disabled:opacity-50"
+        >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5">
             <path d="M3 11v2a1 1 0 001 1h8a1 1 0 001-1v-2M8 3v8m-3-3l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Als JSON exportieren
+          {exportLoading ? 'Wird exportiert…' : 'Alle Daten exportieren (DSGVO)'}
         </button>
       </div>
 

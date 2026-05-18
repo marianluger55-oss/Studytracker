@@ -47,7 +47,8 @@ import ProtectedRoute  from './components/auth/ProtectedRoute';
 import ErrorBoundary   from './components/ErrorBoundary';
 
 // Navigations-Komponenten
-import Sidebar from './components/navigation/Sidebar';
+import Sidebar        from './components/navigation/Sidebar';
+import CookieConsent  from './components/ui/CookieConsent';
 
 // Auth-Seiten werden direkt importiert (klein, immer benötigt)
 import Login          from './pages/Auth/Login';
@@ -296,6 +297,8 @@ export default function App() {
       {/* BrowserRouter stellt Router-Kontext für alle Kind-Komponenten bereit */}
       <BrowserRouter>
         <AppInner />
+        {/* DSGVO-Cookie-Consent — erscheint beim ersten Besuch */}
+        <CookieConsent />
       </BrowserRouter>
     </QueryClientProvider>
   );

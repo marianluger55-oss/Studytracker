@@ -74,6 +74,37 @@ export async function changePassword(
   );
 }
 
+/* ── exportData ────────────────────────────────────────────────── */
+// DSGVO Art. 20: Alle Daten des Nutzers als strukturiertes JSON zurückgeben.
+export async function exportData(userId: number) {
+  const [userRes, sessionsRes, categoriesRes, goalsRes] = await Promise.all([
+    pool.query(
+      'SELECT id, email, username, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
+      [userId]
+    ),
+    pool.query(
+      'SELECT id, start_time, end_time, duration, notes, created_at FROM sessions WHERE user_id = $1 ORDER BY start_time DESC',
+      [userId]
+    ),
+    pool.query(
+      'SELECT id, name, color, created_at FROM categories WHERE user_id = $1 ORDER BY name',
+      [userId]
+    ),
+    pool.query(
+      'SELECT id, period, target_hours, created_at FROM goals WHERE user_id = $1',
+      [userId]
+    ),
+  ]);
+
+  return {
+    exportedAt:  new Date().toISOString(),
+    user:        userRes.rows[0] ?? null,
+    sessions:    sessionsRes.rows,
+    categories:  categoriesRes.rows,
+    goals:       goalsRes.rows,
+  };
+}
+
 /* ── deleteAccount ─────────────────────────────────────────────── */
 // Soft-Delete: Daten werden markiert, nicht sofort gelöscht (DSGVO-Frist)
 export async function deleteAccount(userId: number, password: string) {

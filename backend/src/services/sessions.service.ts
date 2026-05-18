@@ -33,9 +33,16 @@ export async function createSession(
 }
 
 /* ── getSessions ─────────────────────────────────────────────── */
-// Gibt alle Sessions eines Nutzers zurück, neueste zuerst.
-// Joined mit categories, um Farbe und Name direkt mitzuliefern.
-export async function getSessions(userId: number) {
+// Gibt Sessions eines Nutzers zurück, neueste zuerst.
+// limit/offset ermöglichen Pagination; maximum 200 pro Seite.
+export async function getSessions(
+  userId: number,
+  limit  = 200,
+  offset = 0,
+) {
+  const safeLimit  = Math.min(Math.max(1, limit), 200);
+  const safeOffset = Math.max(0, offset);
+
   const result = await pool.query(
     `SELECT
        s.id,
@@ -49,13 +56,20 @@ export async function getSessions(userId: number) {
        c.color AS category_color
      FROM sessions s
      LEFT JOIN categories c ON s.category_id = c.id
-     WHERE s.user_id = $1         -- Nur eigene Sessions
-     ORDER BY s.start_time DESC   -- Neueste zuerst
-     LIMIT 200`,                  // Maximal 200 Sessions laden (Sicherheitslimit)
-    [userId]
+     WHERE s.user_id = $1
+     ORDER BY s.start_time DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, safeLimit, safeOffset]
   );
 
-  return result.rows;
+  /* Gesamtanzahl für Pagination-Meta */
+  const countResult = await pool.query<{ total: string }>(
+    'SELECT COUNT(*) AS total FROM sessions WHERE user_id = $1',
+    [userId]
+  );
+  const total = parseInt(countResult.rows[0]?.total ?? '0', 10);
+
+  return { sessions: result.rows, total, limit: safeLimit, offset: safeOffset };
 }
 
 /* ── getSessionById ──────────────────────────────────────────── */

@@ -48,6 +48,15 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
   res.json({ success: true, data: null });
 });
 
+export const exportData = asyncHandler(async (req: AuthRequest, res: Response) => {
+  /* DSGVO Art. 20 — Datenportabilität: alle eigenen Daten als JSON-Download */
+  const data = await usersService.exportData(req.userId!);
+  const filename = `studytracker-export-${new Date().toISOString().slice(0, 10)}.json`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.json(data);
+});
+
 export const deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { password } = deleteAccountSchema.parse(req.body);
   await usersService.deleteAccount(req.userId!, password);

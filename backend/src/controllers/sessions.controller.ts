@@ -33,8 +33,12 @@ export const createSession = asyncHandler(async (req: AuthRequest, res: Response
 });
 
 export const getSessions = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const sessions = await sessionsService.getSessions(req.userId!);
-  res.json({ success: true, data: { sessions } });
+  /* ?limit=50&offset=0 — beide Werte werden serverseitig auf gültige Ranges geclampt */
+  const limit  = parseInt(String(req.query.limit  ?? '200'), 10);
+  const offset = parseInt(String(req.query.offset ?? '0'),   10);
+
+  const result = await sessionsService.getSessions(req.userId!, limit, offset);
+  res.json({ success: true, data: result });
 });
 
 export const getSessionById = asyncHandler(async (req: AuthRequest, res: Response) => {
