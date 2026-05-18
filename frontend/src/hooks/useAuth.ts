@@ -23,7 +23,8 @@ export function useAuth() {
       /* Interceptor unwrappt { success, data } → hier ist data direkt AuthPayload */
       const { data } = await apiClient.post<AuthPayload>('/auth/login', { email, password });
       setAuth(data.user, data.accessToken);
-      navigate('/');
+      /* Nach Login direkt zum Dashboard — nicht zur Landing Page */
+      navigate('/dashboard');
     },
     [setAuth, navigate]
   );
@@ -37,7 +38,8 @@ export function useAuth() {
         username,
       });
       setAuth(data.user, data.accessToken);
-      navigate('/');
+      /* Nach Registrierung direkt zum Dashboard — nicht zur Landing Page */
+      navigate('/dashboard');
     },
     [setAuth, navigate]
   );

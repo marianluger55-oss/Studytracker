@@ -43,9 +43,10 @@ export default function ProtectedRoute({ children }: Props) {
   /* Noch nicht initialisiert → Auth-Prüfung läuft noch */
   if (!isInitialized) return <AuthLoader />;
 
-  /* Nicht eingeloggt → zur Login-Seite, mit "from" für Rück-Redirect */
+  /* Nicht eingeloggt → zur Landing Page (nicht direkt /login) */
+  /* "from" wird mitgegeben damit nach dem Login auf die ursprüngliche Seite weitergeleitet werden kann */
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
