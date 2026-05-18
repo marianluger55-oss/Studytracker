@@ -19,12 +19,19 @@ import fs    from 'fs';
 import path  from 'path';
 import { Pool, PoolClient } from 'pg';
 
+// Fail-fast: ohne DATABASE_URL läuft pg auf localhost → ECONNREFUSED
+if (!process.env.DATABASE_URL) {
+  console.error('\nFATAL: DATABASE_URL ist nicht gesetzt. Railway PostgreSQL-Plugin prüfen.\n');
+  process.exit(1);
+}
+
 // Eigene Pool-Instanz — unabhängig vom App-Pool
+// rejectUnauthorized: false — Railway PostgreSQL nutzt self-signed Zertifikate intern
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 1,
   ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true }
+    ? { rejectUnauthorized: false }
     : false,
 });
 

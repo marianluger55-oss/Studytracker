@@ -35,31 +35,12 @@ import {
   useInView as useFramerInView,
 } from 'framer-motion';
 
-/* ── Lenis Smooth Scroll ─────────────────────────────────────── */
-// Initialisiert Lenis in der Landing Page, räumt beim Unmount auf
+/* ── Smooth Scroll via CSS ───────────────────────────────────── */
+// Setzt scroll-behavior: smooth auf <html> — kein externes Paket nötig
 function useLenis() {
   useEffect(() => {
-    let lenis: { raf: (t: number) => void; destroy: () => void } | null = null;
-    let raf: number;
-
-    // Dynamischer Import damit kein Tree-Shaking-Problem entsteht
-    import('lenis').then(({ default: Lenis }) => {
-      lenis = new Lenis({
-        duration: 1.2,
-        // Exponentielle Easing-Kurve: schnell start, weich auslaufen
-        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      });
-      const tick = (time: number) => {
-        lenis!.raf(time);
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      lenis?.destroy();
-    };
+    document.documentElement.style.scrollBehavior = 'smooth';
+    return () => { document.documentElement.style.scrollBehavior = ''; };
   }, []);
 }
 

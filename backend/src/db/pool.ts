@@ -15,7 +15,7 @@ export const pool = new Pool({
   connectionTimeoutMillis: 8_000,
   statement_timeout:       30_000, // Hängende Queries nach 30s abbrechen
   ssl: config.isProduction
-    ? { rejectUnauthorized: true }  // Railway PostgreSQL nutzt TLS
+    ? { rejectUnauthorized: false }  // Railway PostgreSQL nutzt self-signed Zertifikate intern
     : false,
 });
 
