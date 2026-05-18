@@ -66,10 +66,11 @@ export default function Login() {
     try {
       await login(data.email, data.password); // useAuth kümmert sich um Redirect
     } catch (err: unknown) {
-      // Axios-Fehler haben err.response.data.error
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Anmeldung fehlgeschlagen. Bitte versuche es erneut.';
+      const error = (err as { response?: { data?: { error?: { message?: string } | string } } })
+        ?.response?.data?.error;
+      const message = typeof error === 'string'
+        ? error
+        : error?.message ?? 'Anmeldung fehlgeschlagen. Bitte versuche es erneut.';
       setServerError(message);
     }
   }

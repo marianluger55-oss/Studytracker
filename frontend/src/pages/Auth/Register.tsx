@@ -82,9 +82,11 @@ export default function Register() {
     try {
       await registerUser(data.email, data.password, data.username);
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Registrierung fehlgeschlagen. Bitte versuche es erneut.';
+      const error = (err as { response?: { data?: { error?: { message?: string } | string } } })
+        ?.response?.data?.error;
+      const message = typeof error === 'string'
+        ? error
+        : error?.message ?? 'Registrierung fehlgeschlagen. Bitte versuche es erneut.';
       setServerError(message);
     }
   }
