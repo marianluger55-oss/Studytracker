@@ -174,7 +174,12 @@ export default function Goals() {
             const active = sessions.some((s) => new Date(s.startTime).toDateString() === date.toDateString());
             return (
               <div key={i} className="flex-1">
-                <div className={`h-7 rounded-md ${active ? 'bg-[var(--text)]' : 'bg-[var(--bg-3)]'}`} />
+                {/* Aktiver Tag: Violett-Gradient; inaktiv: dezentes Weiß */}
+                <div className={`h-7 rounded-md ${
+                  active
+                    ? 'bg-gradient-to-b from-purple-400 to-pink-400'
+                    : 'bg-[var(--bg-3)]'
+                }`} />
                 <p className="text-center text-xs text-[var(--text-3)] mt-1">
                   {date.toLocaleDateString('de-DE', { weekday: 'narrow' })}
                 </p>
@@ -198,8 +203,11 @@ export default function Goals() {
             const unlocked = a.check(sessions.length, totalMins, streak);
             return (
               <div key={a.id} className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
+                {/* Freigeschaltet: Violett-Punkt; gesperrt: leerer Ring */}
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  unlocked ? 'bg-[var(--text)]' : 'border border-[var(--border-strong)] bg-transparent'
+                  unlocked
+                    ? 'bg-gradient-to-br from-pink-400 to-purple-500'
+                    : 'border border-[var(--border-strong)] bg-transparent'
                 }`} />
                 <div className="flex-1 min-w-0">
                   <span className={`text-sm ${unlocked ? 'text-[var(--text)]' : 'text-[var(--text-3)]'}`}>{a.label}</span>

@@ -2,51 +2,45 @@
  * hooks/useChartColors.ts
  * ─────────────────────────────────────────────────────────────
  * Gibt die richtigen Chart.js-Farben für das aktuelle Theme zurück.
+ * Chart.js zeichnet auf <canvas> und kann keine CSS-Variablen lesen —
+ * deshalb müssen wir die Farbstrings manuell übergeben.
  *
- * Warum wird das gebraucht?
- * Chart.js ist eine JavaScript-Bibliothek — sie zeichnet auf einem <canvas>-
- * Element und kann keine CSS-Variablen lesen. Deshalb müssen wir ihr die
- * genauen Hex-Farbstrings manuell übergeben, je nachdem ob wir im Dunkel-
- * oder Hellmodus sind.
- *
- * Jede Komponente, die ein Diagramm rendert, importiert und ruft diesen Hook auf.
+ * Beide Themes nutzen jetzt die Pink/Violett-Palette:
+ *  Dark:  leuchtende Töne auf dunklem Grund
+ *  Light: kräftige Töne auf hellem Lavendel-Weiß
  * ─────────────────────────────────────────────────────────────
  */
 
 import { useSettingsStore } from '../store/settingsStore';
 
 export function useChartColors() {
-  // Theme aus dem Store lesen. Wenn das Theme sich ändert, rendert jede Komponente
-  // die diesen Hook verwendet automatisch mit neuen Farben neu.
+  /* Theme aus dem Store — re-rendert bei Wechsel automatisch */
   const theme = useSettingsStore((s) => s.settings.theme);
-  const dark  = theme === 'dark'; // true = Dunkelmodus
+  const dark  = theme === 'dark';
 
   return {
-    // ── Farbe 3: Petrol ───────────────────────────────────────────
-    // Primäre Balkenfarbe — Petrol-Akzent
-    primary:        dark ? '#5CA89E' : '#2B6E6A',
+    /* Hauptbalken — Pink */
+    primary:        dark ? 'rgba(244,114,182,0.85)' : 'rgba(236,72,153,0.80)',
 
-    // Abgeschwächte Petrol-Balken (nicht hervorgehoben)
-    primaryFaded:   dark ? 'rgba(92,168,158,0.18)' : 'rgba(43,110,106,0.14)',
+    /* Abgeschwächte Hauptbalken */
+    primaryFaded:   dark ? 'rgba(139,92,246,0.28)'  : 'rgba(167,139,250,0.30)',
 
-    // ── Farbe 2: Ebony-Ton ────────────────────────────────────────
-    // Sekundäre Balkenfarbe (Monatsübersicht)
-    secondary:      dark ? '#47474A' : '#96908A',
+    /* Sekundärbalken — Violett/Indigo */
+    secondary:      dark ? 'rgba(192,132,252,0.85)' : 'rgba(147,51,234,0.80)',
 
-    // Abgeschwächte Sekundärfarbe
-    secondaryFaded: dark ? 'rgba(71,71,74,0.5)' : 'rgba(150,144,138,0.25)',
+    /* Abgeschwächte Sekundärbalken */
+    secondaryFaded: dark ? 'rgba(129,140,248,0.28)' : 'rgba(129,140,248,0.25)',
 
-    // ── Farbe 1: Pergament-Töne für Raster/Achsen ─────────────────
-    // Horizontale Gitterlinien
-    grid:           dark ? '#212520' : '#E7E3D8',
+    /* Horizontale Gitterlinien */
+    grid:           dark ? 'rgba(255,255,255,0.06)'  : 'rgba(139,92,246,0.10)',
 
-    // Achsenbeschriftungen
-    tick:           dark ? '#47474A' : '#96908A',
+    /* Achsenbeschriftungen */
+    tick:           dark ? 'rgba(255,255,255,0.35)'  : 'rgba(76,61,114,0.70)',
 
-    // Randfarbe zwischen Donut-Segmenten
-    border:         dark ? '#191C19' : '#FAF8F2',
+    /* Rand zwischen Donut-Segmenten */
+    border:         dark ? '#050508'                  : '#ffffff',
 
-    // Tooltip-Hintergrund
-    tooltipBg:      dark ? '#212520' : '#FAF8F2',
+    /* Tooltip-Hintergrund */
+    tooltipBg:      dark ? 'rgba(10,10,18,0.95)'     : 'rgba(255,255,255,0.97)',
   };
 }

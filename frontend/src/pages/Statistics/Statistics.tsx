@@ -24,8 +24,19 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import { useSessions }   from '../../hooks/useSessions';
 import { useCategories } from '../../hooks/useCategories';
 import { useStats }      from '../../hooks/useStats';
-import { useChartColors } from '../../hooks/useChartColors';
 import { getWeekDays, getWeeklyMinutes, getTodayMinutes } from '../../utils/time';
+
+/* Hardcodierte Dark-Palette — passend zu Landing/Login/Dashboard */
+const DC = {
+  primary:        'rgba(244,114,182,0.80)',  /* Pink — Hauptbalken */
+  primaryFaded:   'rgba(139, 92,246,0.28)',  /* Violett gedämpft */
+  secondary:      'rgba(192,132,252,0.85)',  /* Violett — Sekundärbalken */
+  secondaryFaded: 'rgba(129,140,248,0.28)',  /* Indigo gedämpft */
+  tick:           'rgba(255,255,255,0.35)',  /* Achsenbeschriftungen */
+  grid:           'rgba(255,255,255,0.06)',  /* Gitterlinien */
+  border:         '#050508',                /* Donut-Segmentrand */
+  tooltipBg:      'rgba(10,10,18,0.95)',    /* Tooltip-Hintergrund */
+};
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -58,8 +69,6 @@ export default function Statistics() {
   const { categories, isLoading: categoriesLoading } = useCategories();
   const { data: stats, isLoading: statsLoading }      = useStats();
 
-  const c = useChartColors();
-
   const isLoading = sessionsLoading || categoriesLoading || statsLoading;
 
   /* ── Berechnungen auf Store-Daten ──────────────────────── */
@@ -81,20 +90,30 @@ export default function Statistics() {
   });
 
   /* ── Chart-Optionen (geteilt) ────────────────────────── */
+  /* Gemeinsame Chart-Optionen für beide Balkendiagramme */
   const barOpts = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: { legend: { display: false },
+      tooltip: {
+        backgroundColor: DC.tooltipBg,
+        titleColor:      DC.tick,
+        bodyColor:       'rgba(255,255,255,0.85)',
+        borderColor:     'rgba(255,255,255,0.08)',
+        borderWidth: 1,
+        padding:     10,
+      },
+    },
     scales: {
       x: {
         grid:   { display: false },
-        ticks:  { color: c.tick, font: { size: 11, family: 'Inter' } },
+        ticks:  { color: DC.tick, font: { size: 11, family: 'Inter' } },
         border: { display: false },
       },
       y: {
-        grid:   { color: c.grid, drawTicks: false },
+        grid:   { color: DC.grid, drawTicks: false },
         ticks: {
-          color: c.tick,
+          color: DC.tick,
           font:  { size: 11, family: 'Inter' },
           callback: (v: number | string) => `${v}m`,
         },
@@ -107,8 +126,8 @@ export default function Statistics() {
     labels: weekdays,
     datasets: [{
       data:                 weeklyMins,
-      backgroundColor:      c.primaryFaded,
-      hoverBackgroundColor: c.primary,
+      backgroundColor:      DC.primaryFaded,
+      hoverBackgroundColor: DC.primary,
       borderRadius:         4,
       borderSkipped:        false,
     }],
@@ -118,8 +137,8 @@ export default function Statistics() {
     labels: ['Vor 3 Wo.', 'Vor 2 Wo.', 'Letzte Wo.', 'Diese Wo.'],
     datasets: [{
       data:                 monthlyWeeks,
-      backgroundColor:      c.secondaryFaded,
-      hoverBackgroundColor: c.secondary,
+      backgroundColor:      DC.secondaryFaded,
+      hoverBackgroundColor: DC.secondary,
       borderRadius:         4,
       borderSkipped:        false,
     }],
@@ -130,7 +149,7 @@ export default function Statistics() {
     datasets: [{
       data:            categories.map((cat) => cat.totalMinutes ?? 0),
       backgroundColor: categories.map((cat) => cat.color),
-      borderColor:     c.border,
+      borderColor:     DC.border,
       borderWidth:     3,
     }],
   };
@@ -141,7 +160,7 @@ export default function Statistics() {
     plugins: {
       legend: {
         position: 'right' as const,
-        labels: { color: c.tick, boxWidth: 10, padding: 14, font: { size: 11 } },
+        labels: { color: DC.tick, boxWidth: 10, padding: 14, font: { size: 11 } },
       },
     },
     cutout: '68%',
@@ -158,13 +177,13 @@ export default function Statistics() {
   if (isLoading) {
     return (
       <div className="space-y-5 animate-pulse">
-        <div className="h-8 bg-[var(--bg-3)] rounded w-48" />
+        <div className="h-8 bg-white/5 rounded-xl w-48" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card py-3 h-16 bg-[var(--bg-3)]" />
+            <div key={i} className="card py-3 h-16" />
           ))}
         </div>
-        <div className="card h-48 bg-[var(--bg-3)]" />
+        <div className="card h-48" />
       </div>
     );
   }

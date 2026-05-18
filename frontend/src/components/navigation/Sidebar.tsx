@@ -2,25 +2,19 @@
  * components/navigation/Sidebar.tsx
  * ─────────────────────────────────────────────────────────────
  * Linke Navigationsleiste — responsiv für Desktop und Mobile.
- *
- * Enthält:
- *  - Logo + App-Name
- *  - Navigationslinks (gruppiert)
- *  - Live-Session-Indikator (zeigt laufende Session überall sichtbar)
- *  - Rechtliche Links (Impressum, Datenschutz, AGB)
- *  - Theme-Toggle
+ * Dark-Design: Glassmorphism-Sidebar, Purple-Akzent, Shimmer-Logo.
  * ─────────────────────────────────────────────────────────────
  */
 
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTheme }        from '../../hooks/useTheme';
-import { useSessionStore } from '../../store/sessionStore';  // Für Live-Session-Indikator
-import { formatTimer }     from '../../utils/time';          // Sekunden → "HH:MM:SS"
+import { useSessionStore } from '../../store/sessionStore';  /* Für Live-Session-Indikator */
+import { formatTimer }     from '../../utils/time';          /* Sekunden → "HH:MM:SS" */
 
 /* ── Props ───────────────────────────────────────────────────── */
 interface SidebarProps {
-  isOpen:  boolean;    // true = Mobile-Sidebar aufgeklappt
-  onClose: () => void; // Callback: schließt die Mobile-Sidebar
+  isOpen:  boolean;    /* true = Mobile-Sidebar aufgeklappt */
+  onClose: () => void; /* Callback: schließt die Mobile-Sidebar */
 }
 
 /* ── Navigationsgruppen ─────────────────────────────────────── */
@@ -29,7 +23,7 @@ const navGroups = [
     label: null,
     items: [
       {
-        to: '/',
+        to: '/dashboard',
         label: 'Dashboard',
         icon: (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5 flex-shrink-0">
@@ -108,7 +102,6 @@ const navGroups = [
 ];
 
 /* ── Rechtliche Links ────────────────────────────────────────── */
-// Statische Liste — verlinkt auf die gesetzlich erforderlichen Seiten
 const legalLinks = [
   { to: '/impressum',   label: 'Impressum'   },
   { to: '/datenschutz', label: 'Datenschutz' },
@@ -120,19 +113,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark, toggle } = useTheme();
   const navigate = useNavigate();
 
-  // activeSession: laufende Session (null = kein Timer aktiv)
-  // isRunning: true wenn der Timer gerade tickt (nicht pausiert)
-  // Jede Sekunde erhöht tickElapsed() den elapsed-Wert im Store →
-  // diese Komponente re-rendert automatisch → Zeitanzeige ist live
+  /* activeSession: laufende Session (null = kein Timer aktiv) */
+  /* isRunning: true wenn der Timer gerade tickt */
   const { activeSession, isRunning } = useSessionStore();
 
   return (
-    // Sidebar-Wrapper:
-    // fixed left-0 top-0 h-full: klebt am linken Bildschirmrand, volle Höhe
-    // z-50: liegt über Backdrop (z-40) und dem Seiteninhalt
-    // transition-transform: 250ms Slide-Animation mit expo-out-Kurve
-    // Mobile: -translate-x-full (versteckt) → translate-x-0 (offen wenn isOpen)
-    // Desktop: lg:translate-x-0 — immer sichtbar, unabhängig von isOpen
+    /* Sidebar-Wrapper: fixed links, volle Höhe, z-50 über Backdrop */
+    /* Mobile: -translate-x-full (versteckt) → translate-x-0 (offen wenn isOpen) */
+    /* Desktop: lg:translate-x-0 — immer sichtbar */
     <aside
       className={[
         'sidebar fixed left-0 top-0 h-full w-48 flex flex-col z-50',
@@ -146,10 +134,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-center justify-between">
 
-          {/* Logo */}
+          {/* Logo — Shimmer-Gradient-Punkt + App-Name */}
           <div className="flex items-center gap-2">
-            <div className="w-[18px] h-[18px] rounded-full bg-[var(--accent)] flex-shrink-0" />
-            <p className="text-[13px] font-semibold tracking-tight text-[var(--text)] leading-none">
+            {/* Kleiner Gradient-Punkt als Logo-Symbol */}
+            <div
+              className="w-[18px] h-[18px] rounded-full flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #f472b6, #c084fc)' }}
+            />
+            <p className="text-[13px] font-bold tracking-tight text-[var(--text)] leading-none">
               StudyTracker
             </p>
           </div>
@@ -172,8 +164,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="sidebar-divider mb-3" />
 
       {/* ── Live-Session-Indikator ───────────────────────────── */}
-      {/* Wird nur gerendert wenn eine Session aktiv ist (activeSession !== null) */}
-      {/* Aktualisiert sich jede Sekunde automatisch da der Store re-rendert    */}
+      {/* Wird nur gerendert wenn eine Session aktiv ist */}
       {activeSession && (
         <div className="px-2 mb-3">
           {/* Klickbar → navigiert zur Timer-Seite */}
@@ -184,11 +175,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           >
             {/* Zeile 1: Pulsierender Punkt + Zeitanzeige */}
             <div className="flex items-center gap-2">
-              {/* Punkt: grün-pulsierend wenn läuft, grau wenn pausiert */}
+              {/* Violetter Puls-Punkt wenn läuft, gedämpft wenn pausiert */}
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 isRunning ? 'bg-[var(--accent)] animate-pulse' : 'bg-[var(--text-3)]'
               }`} />
-              {/* Monospace-Zeitanzeige — formatTimer: Sekunden → "HH:MM:SS" */}
+              {/* Zeitanzeige in Akzentfarbe */}
               <span className="text-[11px] font-mono font-semibold tabular-nums text-[var(--accent)]">
                 {formatTimer(activeSession.elapsed)}
               </span>
@@ -223,8 +214,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={item.to === '/'}
-                  onClick={onClose}  // Sidebar auf Mobile schließen nach Klick
+                  // end=true beim Dashboard-Link: verhindert "aktiv" auf allen Unterseiten
+                  end={item.to === '/dashboard'}
+                  onClick={onClose}
                   className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
                 >
                   {item.icon}
@@ -237,7 +229,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       </nav>
 
       {/* ── Rechtliche Links ─────────────────────────────────── */}
-      {/* Immer am unteren Ende der Sidebar — vor dem Theme-Toggle */}
       <div className="px-3 py-3">
         <div className="sidebar-divider mb-3" />
         {/* Drei Links nebeneinander — sehr klein und dezent */}
@@ -247,7 +238,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               key={link.to}
               to={link.to}
               onClick={onClose}
-              // Aktiver Link in Akzentfarbe, sonst sehr dezent
               className={({ isActive }) =>
                 `text-[10px] transition-colors ${
                   isActive

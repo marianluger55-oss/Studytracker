@@ -31,6 +31,9 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 // React Hooks + Lazy Loading
 import { useEffect, useState, lazy, Suspense } from 'react';
 
+// Framer Motion — für die globalen Aurora-Blobs im AppLayout
+import { motion } from 'framer-motion';
+
 // TanStack Query — Server-State-Verwaltung
 import { QueryClientProvider } from '@tanstack/react-query';
 
@@ -51,6 +54,9 @@ import Login          from './pages/Auth/Login';
 import Register       from './pages/Auth/Register';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword  from './pages/Auth/ResetPassword';
+
+// Landing Page: öffentliche Startseite — lazy geladen
+const Landing = lazy(() => import('./pages/Landing/Landing'));
 
 // App-Seiten werden lazy geladen — nur wenn die Route aufgerufen wird
 // lazy(): lädt das Modul erst beim ersten Besuch dieser Route
@@ -88,15 +94,18 @@ function PageLoader() {
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
-  // navOpen: steuert die Mobile-Sidebar (geöffnet/geschlossen)
+  /* navOpen: steuert die Mobile-Sidebar (geöffnet/geschlossen) */
   const [navOpen, setNavOpen] = useState(false);
 
-  // Sidebar schließen wenn Route wechselt (nach Nav-Klick auf Mobile)
+  /* Theme — steuert Aurora-Farben und Hintergrundfarbe */
+  const isDark = useSettingsStore((s) => s.settings.theme === 'dark');
+
+  /* Sidebar schließen wenn Route wechselt */
   useEffect(() => {
     setNavOpen(false);
   }, [location.pathname]);
 
-  // Scroll auf der Seite sperren wenn Mobile-Nav offen ist
+  /* Scroll sperren wenn Mobile-Nav offen */
   useEffect(() => {
     document.body.style.overflow = navOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -104,6 +113,64 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
+
+      {/* ── Globaler Hintergrund + Aurora-Blobs ─────────────────── */}
+      {/* fixed -z-10: hinter Sidebar und Inhalt, niemals geklickt   */}
+      <div
+        className="fixed inset-0 -z-10 pointer-events-none transition-colors duration-300"
+        style={{ backgroundColor: isDark ? '#050508' : '#f5f3ff' }}
+      />
+
+      {/* Blob 1 — Pink — links oben */}
+      <motion.div
+        className="fixed rounded-full blur-[180px] pointer-events-none -z-10"
+        style={{
+          width: 700, height: 700,
+          background: 'radial-gradient(ellipse, #ec4899 0%, transparent 70%)',
+          left: '-18%', top: '-18%',
+          opacity: isDark ? 0.08 : 0.06,
+        }}
+        animate={{ x: [0, 50, 0], y: [0, 35, 0] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Blob 2 — Violett — rechts unten */}
+      <motion.div
+        className="fixed rounded-full blur-[160px] pointer-events-none -z-10"
+        style={{
+          width: 600, height: 600,
+          background: 'radial-gradient(ellipse, #a855f7 0%, transparent 70%)',
+          right: '-12%', bottom: '-8%',
+          opacity: isDark ? 0.07 : 0.05,
+        }}
+        animate={{ x: [0, -40, 0], y: [0, -30, 0] }}
+        transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Blob 3 — Indigo — Mitte */}
+      <motion.div
+        className="fixed rounded-full blur-[140px] pointer-events-none -z-10"
+        style={{
+          width: 450, height: 450,
+          background: 'radial-gradient(ellipse, #818cf8 0%, transparent 70%)',
+          left: '45%', top: '48%',
+          opacity: isDark ? 0.05 : 0.04,
+        }}
+        animate={{ x: [0, 30, 0], y: [0, 25, 0] }}
+        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Dot-Grid — Farbe je nach Theme */}
+      <div
+        className="fixed inset-0 -z-10 pointer-events-none"
+        style={{
+          backgroundImage: isDark
+            ? 'radial-gradient(circle, rgba(255,255,255,.30) 1px, transparent 1px)'
+            : 'radial-gradient(circle, rgba(124,58,237,.18) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+          opacity: isDark ? 0.08 : 0.40,
+        }}
+      />
 
       {/* ── Mobile Topbar (nur < lg) ──────────────────────── */}
       <header className="mobile-topbar lg:hidden">
@@ -151,10 +218,12 @@ function AppLayout({ children }: { children: React.ReactNode }) {
    Innere App (hat Router-Kontext — braucht useLocation)
    ═══════════════════════════════════════════════════════════════ */
 function AppInner() {
-  // Theme aus dem Settings-Store — wird auf <body> angewendet
+  /* Theme aus dem Store lesen — Migration in settingsStore.ts stellt sicher
+     dass der Wert bereits 'dark' ist, auch wenn 'light' in localStorage stand */
   const theme = useSettingsStore((s) => s.settings.theme);
 
-  // Theme-Klasse auf body setzen (CSS-Variablen reagieren darauf)
+  /* body.dark setzen — useTheme im Sidebar tut dasselbe, aber dieser
+     Effect läuft als Eltern-Komponente zuerst und verhindert einen Flash */
   useEffect(() => {
     document.body.classList.toggle('dark', theme === 'dark');
   }, [theme]);
@@ -165,6 +234,10 @@ function AppInner() {
       <AuthInitializer />
 
       <Routes>
+        {/* ── Landing Page (öffentlich) ────────────────── */}
+        {/* Startseite für nicht eingeloggte Besucher */}
+        <Route path="/" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
+
         {/* ── Öffentliche Auth-Seiten (kein Layout) ─────── */}
         {/* Eigenes Layout ohne Sidebar — volle Seite für Login/Register */}
         <Route path="/login"           element={<Login />}          />
@@ -190,14 +263,17 @@ function AppInner() {
                   {/* ErrorBoundary: fängt Laufzeitfehler in Seiten-Komponenten */}
                   <ErrorBoundary>
                     <Routes>
-                      <Route path="/"           element={<Dashboard />}  />
+                      {/* Dashboard ist jetzt unter /dashboard erreichbar */}
+                      <Route path="/dashboard"  element={<Dashboard />}  />
                       <Route path="/timer"      element={<Timer />}       />
                       <Route path="/statistics" element={<Statistics />}  />
                       <Route path="/categories" element={<Categories />}  />
                       <Route path="/goals"      element={<Goals />}       />
                       <Route path="/settings"   element={<Settings />}    />
+                      {/* / innerhalb des geschützten Bereichs → Dashboard */}
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
                       {/* Unbekannte Routen → Dashboard */}
-                      <Route path="*" element={<Navigate to="/" replace />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </ErrorBoundary>
                 </Suspense>

@@ -1,41 +1,46 @@
 @import "tailwindcss";
 
+/* ── Shimmer-Button — global für .btn-primary im Dark Mode ───── */
+@keyframes shimmerBtn {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
 /* ═══════════════════════════════════════════════════════════════
-   DESIGN-TOKENS — Drei-Farben-Palette
+   DESIGN-TOKENS — Light Mode (Modernes Pink/Violett-Design)
    ─────────────────────────────────────────────────────────────
-   Farbe 1: Altes Pergament  — Hintergründe, warme Flächen
-   Farbe 2: Warmes Ebony     — Text, Struktur, Typografie
-   Farbe 3: Tiefes Petrol    — Akzent, Interaktion, Highlights
+   Gleiche Ästhetik wie Dark Mode: Pink/Lila-Palette, sauber, modern.
+   Hintergrund: zartes Lavendel-Weiß statt altes Pergament.
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  /* ── Farbe 1: Altes Pergament ── */
-  --bg:            #F3F0E8;   /* Seitengrund — antikes Pergament */
-  --bg-2:          #FAF8F2;   /* Karten, Sidebar — helleres Pergament */
-  --bg-3:          #E7E3D8;   /* Hover-Flächen */
-  --bg-4:          #DAD6C8;   /* Aktiv/Input-Flächen */
+  /* ── Hintergründe ── */
+  --bg:            #f5f3ff;   /* Zartes Lavendel-Weiß — Seitenhintergrund */
+  --bg-2:          #ffffff;   /* Reine weiße Karten */
+  --bg-3:          #ede9fe;   /* Violett-getöntes Hover */
+  --bg-4:          #ddd6fe;   /* Aktiv / Input-Hintergrund */
 
-  /* ── Ränder — warm getönt ── */
-  --border:        rgba(27, 24, 16, 0.08);
-  --border-strong: rgba(27, 24, 16, 0.15);
-  --border-focus:  rgba(43, 110, 106, 0.45); /* Petrol-Fokusring */
+  /* ── Ränder — violett-getönt ── */
+  --border:        rgba(139, 92, 246, 0.12);
+  --border-strong: rgba(139, 92, 246, 0.22);
+  --border-focus:  rgba(147, 51, 234, 0.50);
 
-  /* ── Farbe 2: Warmes Ebony ── */
-  --text:          #1B1810;   /* Primär — tiefes warmes Schwarz */
-  --text-2:        #524C42;   /* Sekundär — Mittelbraun */
-  --text-3:        #96908A;   /* Tertiär — helles Warmgrau */
-  --text-4:        #C4BEB6;   /* Placeholder */
+  /* ── Text ── */
+  --text:          #1e1033;   /* Sehr dunkles Violett-Schwarz */
+  --text-2:        #4c3d72;   /* Mittleres Lila-Grau */
+  --text-3:        #8b7bae;   /* Gedämpftes Lila */
+  --text-4:        #c4b8e0;   /* Placeholder */
 
-  /* ── Farbe 3: Tiefes Petrol ── */
-  --accent:        #2B6E6A;   /* Petrol — ruhig, fokussiert, einzigartig */
-  --accent-inv:    #FFFFFF;
-  --accent-hover:  #225958;   /* Dunkler Petrol für Hover */
-  --accent-soft:   rgba(43, 110, 106, 0.09);
+  /* ── Akzent — Violett ── */
+  --accent:        #7c3aed;   /* Kräftiges Violett — guter Kontrast auf Weiß */
+  --accent-inv:    #ffffff;
+  --accent-hover:  #6d28d9;
+  --accent-soft:   rgba(124, 58, 237, 0.09);
 
-  /* ── Schatten ── */
-  --shadow-xs: 0 1px 2px rgba(27,24,16,0.05), 0 0 0 1px rgba(27,24,16,0.04);
-  --shadow-sm: 0 2px 6px rgba(27,24,16,0.07), 0 0 0 1px rgba(27,24,16,0.05);
-  --shadow-md: 0 4px 14px rgba(27,24,16,0.09), 0 0 0 1px rgba(27,24,16,0.05);
-  --shadow-lg: 0 12px 32px rgba(27,24,16,0.13), 0 0 0 1px rgba(27,24,16,0.05);
+  /* ── Schatten — violett-getönt ── */
+  --shadow-xs: 0 1px 3px rgba(109, 40, 217, 0.06), 0 0 0 1px rgba(139,92,246,0.07);
+  --shadow-sm: 0 2px 8px rgba(109, 40, 217, 0.09), 0 0 0 1px rgba(139,92,246,0.08);
+  --shadow-md: 0 4px 16px rgba(109, 40, 217, 0.13), 0 0 0 1px rgba(139,92,246,0.09);
+  --shadow-lg: 0 12px 36px rgba(109, 40, 217, 0.18), 0 0 0 1px rgba(139,92,246,0.10);
 
   /* ── Transitions ── */
   --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
@@ -44,35 +49,34 @@
   --t-slow:    350ms var(--ease-out);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — Aurora Design
+   Passend zu Landing Page / Login / Register
+   ═══════════════════════════════════════════════════════════════ */
 body.dark {
-  /* ── Farbe 1: Dunkles Pergament ── */
-  --bg:            #111310;   /* Sehr dunkles Warmgrün-Schwarz */
-  --bg-2:          #191C19;   /* Karten */
-  --bg-3:          #212520;   /* Hover */
-  --bg-4:          #2A2E29;   /* Aktiv/Input */
+  --bg:            #050508;
+  --bg-2:          #0c0c12;
+  --bg-3:          rgba(255,255,255,0.05);
+  --bg-4:          rgba(255,255,255,0.08);
 
-  /* ── Ränder ── */
-  --border:        rgba(240, 245, 235, 0.07);
-  --border-strong: rgba(240, 245, 235, 0.13);
-  --border-focus:  rgba(92, 168, 158, 0.45);
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.13);
+  --border-focus:  rgba(192,132,252,0.50);
 
-  /* ── Farbe 2: Helles Ebony (invertiert für Dunkel) ── */
-  --text:          #EBE8DF;   /* Warmes Off-White */
-  --text-2:        #82807A;   /* Mittelhell */
-  --text-3:        #47474A;   /* Dunkelgrau */
-  --text-4:        #2C2D2F;
+  --text:          #ffffff;
+  --text-2:        rgba(255,255,255,0.70);
+  --text-3:        rgba(255,255,255,0.35);
+  --text-4:        rgba(255,255,255,0.15);
 
-  /* ── Farbe 3: Helles Petrol (für dunklen Hintergrund) ── */
-  --accent:        #5CA89E;   /* Aufgehelltes Petrol — gut auf Dunkel */
-  --accent-inv:    #111310;
-  --accent-hover:  #6DBDB3;
-  --accent-soft:   rgba(92, 168, 158, 0.12);
+  --accent:        #c084fc;
+  --accent-inv:    #050508;
+  --accent-hover:  #d8b4fe;
+  --accent-soft:   rgba(192,132,252,0.12);
 
-  /* ── Schatten ── */
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.4),   0 0 0 1px rgba(240,245,235,0.04);
-  --shadow-sm: 0 2px 6px rgba(0,0,0,0.5),   0 0 0 1px rgba(240,245,235,0.04);
-  --shadow-md: 0 4px 14px rgba(0,0,0,0.6),  0 0 0 1px rgba(240,245,235,0.04);
-  --shadow-lg: 0 12px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(240,245,235,0.04);
+  --shadow-xs: 0 1px 3px rgba(0,0,0,0.5);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.6);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.7);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.8);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -85,7 +89,6 @@ body.dark {
 
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    /* Inter optische OpenType-Features für sauberere Ziffern und Formen */
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
     background-color: var(--bg);
     color: var(--text);
@@ -95,15 +98,12 @@ body.dark {
     line-height: 1.5;
   }
 
-  /* Sehr schlanker Scrollbalken — fast unsichtbar */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
 
-  /* Dropdown-Optionen mit Theme-Farben */
   select option { background-color: var(--bg-2); color: var(--text); }
 
-  /* Fokus-Ring nur bei Tastaturnavigation — jetzt in Salbei */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -114,7 +114,7 @@ body.dark {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   KOMPONENTEN
+   KOMPONENTEN — Light Mode (shared base)
    ═══════════════════════════════════════════════════════════════ */
 @layer components {
 
@@ -123,10 +123,10 @@ body.dark {
     display: flex;
     min-height: 100vh;
     background-color: var(--bg);
+    position: relative;
   }
 
   /* ─── Sidebar ───────────────────────────────────────────────── */
-  /* Keine harte border-right — nur der Schatten schafft die Trennung */
   .sidebar {
     background-color: var(--bg-2);
     border-right: 1px solid var(--border);
@@ -140,7 +140,7 @@ body.dark {
     margin: 0 12px;
   }
 
-  /* Nav-Link — subtle hover, klarer aktiver Zustand */
+  /* ─── Nav-Link ──────────────────────────────────────────────── */
   .nav-item {
     display: flex;
     align-items: center;
@@ -160,11 +160,10 @@ body.dark {
     background-color: var(--bg-3);
   }
   .nav-item.active {
-    color: var(--accent);            /* Aktiver Link in Salbei statt Schwarz */
-    background-color: var(--accent-soft); /* Sehr sanfte Salbei-Fläche */
+    color: var(--accent);
+    background-color: var(--accent-soft);
     font-weight: 500;
   }
-  /* Linker Akzent-Indikator — jetzt in Salbei */
   .nav-item.active::before {
     content: '';
     position: absolute;
@@ -173,28 +172,23 @@ body.dark {
     transform: translateY(-50%);
     width: 2px;
     height: 55%;
-    background-color: var(--accent);  /* Salbei-Strich statt Schwarz */
+    background-color: var(--accent);
     border-radius: 0 2px 2px 0;
   }
 
   /* ─── Mobile Topbar ────────────────────────────────────────── */
-  /* Schmale Kopfleiste für Mobile — enthält Hamburger + App-Name  */
-  /* Nur auf kleinen Screens sichtbar (lg:hidden in App.tsx)        */
   .mobile-topbar {
-    position: fixed;       /* Klebt oben im Viewport — scrollen beeinflusst sie nicht */
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 48px;          /* Kompakte Höhe — genug für den Daumen */
-    z-index: 40;           /* Über dem Inhalt (z-0), aber unter der Sidebar (z-50) */
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    z-index: 40;
     background-color: var(--bg-2);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 1rem;       /* Horizontaler Innenabstand links und rechts */
-    /* Schatten nach unten — zeigt dass Content darunter scrollt */
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    padding: 0 1rem;
+    box-shadow: var(--shadow-xs);
   }
 
   /* ─── Theme-Schalter ────────────────────────────────────────── */
@@ -214,8 +208,7 @@ body.dark {
   .theme-switch:hover { background-color: var(--bg-3); }
 
   .switch-track {
-    width: 26px;
-    height: 15px;
+    width: 26px; height: 15px;
     border-radius: 99px;
     border: 1px solid var(--border-strong);
     background: var(--bg-4);
@@ -224,15 +217,13 @@ body.dark {
     transition: background var(--t-normal), border-color var(--t-normal);
   }
   .switch-track.on {
-    background: var(--accent);        /* Salbei wenn eingeschaltet */
+    background: var(--accent);
     border-color: var(--accent);
   }
   .switch-thumb {
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 9px;
-    height: 9px;
+    top: 2px; left: 2px;
+    width: 9px; height: 9px;
     border-radius: 50%;
     background: var(--text-3);
     transition: transform var(--t-normal), background var(--t-normal);
@@ -243,11 +234,10 @@ body.dark {
   }
 
   /* ─── Karten ────────────────────────────────────────────────── */
-  /* Schatten statt Rahmen als primäres Tiefenelement — Framer-Stil */
   .card {
     background-color: var(--bg-2);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 1.25rem;
     box-shadow: var(--shadow-sm);
   }
@@ -259,7 +249,6 @@ body.dark {
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  /* Keine margin-bottom — für Header-Zeilen mit flex justify-between */
   .card-title-flush {
     font-size: 0.6875rem;
     font-weight: 600;
@@ -268,18 +257,16 @@ body.dark {
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  /* Hervorgehobene Karte — z. B. aktives Formular oder erreichtes Ziel */
   .card-accent {
     border-color: var(--border-strong);
     box-shadow: var(--shadow-md);
   }
 
   /* ─── Stat-Kacheln ──────────────────────────────────────────── */
-  /* Minimal — nur Zahl und Label, kein dekorativer Overhead */
   .stat-card {
     background-color: var(--bg-2);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 1rem 1.125rem;
     box-shadow: var(--shadow-xs);
   }
@@ -295,7 +282,7 @@ body.dark {
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--text);
-    letter-spacing: -0.035em;  /* Sehr eng — wirkt wie echte Display-Typografie */
+    letter-spacing: -0.035em;
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
   }
@@ -307,29 +294,36 @@ body.dark {
   }
 
   /* ─── Buttons ───────────────────────────────────────────────── */
-  /* Primär — Salbeigrün solid, kein Gradient */
+  /* Light: Pink→Violett Shimmer — gleiche Energie wie Dark Mode */
   .btn-primary {
-    background-color: var(--accent);
-    color: var(--accent-inv);
+    background: linear-gradient(90deg, #f472b6, #c084fc, #818cf8, #c084fc, #f472b6);
+    background-size: 300% 100%;
+    animation: shimmerBtn 4s linear infinite;
+    color: #ffffff;
     font-family: 'Inter', sans-serif;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.8125rem;
     letter-spacing: -0.01em;
     padding: 0.4375rem 0.875rem;
     border-radius: 8px;
     border: none;
     cursor: pointer;
-    transition: background-color var(--t-fast), transform var(--t-fast), opacity var(--t-fast);
+    transition: transform var(--t-fast), opacity var(--t-fast);
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
     line-height: 1;
+    box-shadow: 0 2px 12px rgba(192, 132, 252, 0.35);
   }
-  .btn-primary:hover { background-color: var(--accent-hover); }
-  .btn-primary:active { transform: scale(0.98); }
-  .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+  .btn-primary:hover {
+    transform: scale(1.02);
+    animation: shimmerBtn 3s linear infinite;
+    box-shadow: 0 4px 18px rgba(192, 132, 252, 0.50);
+  }
+  .btn-primary:active  { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.45; animation: none; cursor: not-allowed; transform: none; }
 
-  /* Sekundär — transparenter Hintergrund, klarer Rahmen */
+  /* Sekundär — transparenter Hintergrund, violett-getönter Rahmen */
   .btn-ghost {
     background-color: transparent;
     color: var(--text-2);
@@ -354,16 +348,16 @@ body.dark {
   }
   .btn-ghost:active { transform: scale(0.98); }
 
-  /* Destruktiv — nur bei kritischen Aktionen wie Löschen */
+  /* Destruktiv */
   .btn-danger {
     background-color: transparent;
-    color: #c0392b;
+    color: #dc2626;
     font-family: 'Inter', sans-serif;
     font-size: 0.8125rem;
     font-weight: 500;
     padding: 0.4375rem 0.875rem;
     border-radius: 8px;
-    border: 1px solid rgba(192,57,43,0.2);
+    border: 1px solid rgba(220,38,38,0.20);
     cursor: pointer;
     transition: background-color var(--t-fast), border-color var(--t-fast);
     display: inline-flex;
@@ -372,21 +366,17 @@ body.dark {
     line-height: 1;
   }
   .btn-danger:hover {
-    background-color: rgba(192,57,43,0.05);
-    border-color: rgba(192,57,43,0.35);
+    background-color: rgba(220,38,38,0.06);
+    border-color: rgba(220,38,38,0.35);
   }
-  body.dark .btn-danger { color: #e87060; border-color: rgba(232,112,96,0.2); }
-  body.dark .btn-danger:hover { background-color: rgba(232,112,96,0.08); border-color: rgba(232,112,96,0.35); }
 
   /* ─── Eingabefelder ─────────────────────────────────────────── */
-  /* Cleaner als zuvor — Hintergrund = Seitenhintergrund, klarer Fokus-Ring */
   .input {
-    background-color: var(--bg);
+    background-color: var(--bg-2);
     border: 1px solid var(--border-strong);
     color: var(--text);
     font-family: 'Inter', sans-serif;
     font-size: 0.875rem;
-    font-weight: 400;
     padding: 0.46875rem 0.75rem;
     border-radius: 8px;
     outline: none;
@@ -395,13 +385,11 @@ body.dark {
     letter-spacing: -0.005em;
   }
   .input:focus {
-    border-color: var(--accent);              /* Salbei-Rahmen beim Fokus */
-    box-shadow: 0 0 0 3px var(--accent-soft); /* Sanfter Salbei-Glow */
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  body.dark .input:focus { box-shadow: 0 0 0 3px rgba(113,168,130,0.15); }
   .input::placeholder { color: var(--text-4); }
 
-  /* Label über einem Eingabefeld */
   .input-label {
     font-size: 0.6875rem;
     font-weight: 500;
@@ -413,7 +401,6 @@ body.dark {
   }
 
   /* ─── Session-Zeilen ────────────────────────────────────────── */
-  /* Sehr dezenter Hover — die Zeile bewegt sich nicht, nur der Hintergrund */
   .session-row {
     display: flex;
     align-items: center;
@@ -439,7 +426,6 @@ body.dark {
     background-color: var(--progress-color, var(--accent));
     height: 100%;
     border-radius: 99px;
-    /* Sanfte, leicht springende Kurve — fühlt sich lebendig an */
     transition: width 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
   }
 
@@ -448,40 +434,28 @@ body.dark {
   .chart-container-md { height: 180px; position: relative; }
 
   /* ─── Live-Session-Indikator ───────────────────────────────── */
-  /* Klickbare Kachel in der Sidebar — zeigt laufende Session live */
   .session-live {
     background-color: var(--accent-soft);
-    border: 1px solid rgba(43, 110, 106, 0.2);
-  }
-  body.dark .session-live {
-    border-color: rgba(92, 168, 158, 0.2);
+    border: 1px solid rgba(124, 58, 237, 0.15);
   }
 
   /* ─── Timer-Ring ────────────────────────────────────────────── */
-  /* Größe wird in Timer.tsx per Tailwind-Klassen gesetzt (w-44 sm:w-56) */
-  /* Nur position: relative bleibt hier — nötig damit das SVG + Text-Layer */
-  /* mit absolute inset-0 korrekt darin positioniert werden können          */
   .timer-ring-wrap { position: relative; }
 
   /* ─── Aktivitäts-Heatmap ────────────────────────────────────── */
-  /* Petrol-Palette — fünf Stufen von leer bis maximal */
+  /* Light Mode: Violett-Pink-Abstufungen */
   .heat-empty { background-color: var(--bg-3); }
-  .heat-low   { background-color: #C4DCD9; }   /* sehr helles Petrol */
-  .heat-mid   { background-color: #7DB8B3; }   /* mittleres Petrol */
-  .heat-high  { background-color: #2B6E6A; }   /* = --accent */
-  .heat-max   { background-color: #1A4846; }   /* dunkles Petrol */
-
-  body.dark .heat-low  { background-color: #1E3634; }
-  body.dark .heat-mid  { background-color: #2E5654; }
-  body.dark .heat-high { background-color: #3E7672; }
-  body.dark .heat-max  { background-color: #5CA89E; }
+  .heat-low   { background-color: #e9d5ff; }
+  .heat-mid   { background-color: #c084fc; }
+  .heat-high  { background-color: #9333ea; }
+  .heat-max   { background-color: #6d28d9; }
 
   /* ─── Status-Tags / Badges ──────────────────────────────────── */
   .tag {
     display: inline-flex;
     align-items: center;
     padding: 0.15rem 0.45rem;
-    border-radius: 5px;           /* Quadratischer als ein Pill — wirkt professioneller */
+    border-radius: 5px;
     font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.03em;
@@ -493,22 +467,15 @@ body.dark {
     border: 1px solid var(--border-strong);
   }
   .tag-green {
-    /* Salbei-Töne statt generisches Grün */
     background-color: var(--accent-soft);
     color: var(--accent);
-    border: 1px solid rgba(74,115,88,0.2);
-  }
-  body.dark .tag-green {
-    color: var(--accent);
-    background-color: var(--accent-soft);
-    border-color: rgba(113,168,130,0.2);
+    border: 1px solid rgba(124, 58, 237, 0.18);
   }
 
   /* ─── Trennlinie ────────────────────────────────────────────── */
   .divider { height: 1px; background-color: var(--border); }
 
   /* ─── Seitenüberschriften ───────────────────────────────────── */
-  /* Framer-Stil: groß, sehr eng, selbstbewusst */
   .page-title {
     font-size: 1.1875rem;
     font-weight: 700;
@@ -533,16 +500,8 @@ body.dark {
     text-align: center;
     gap: 0.375rem;
   }
-  .empty-state-title {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-2);
-    letter-spacing: -0.01em;
-  }
-  .empty-state-sub {
-    font-size: 0.8125rem;
-    color: var(--text-3);
-  }
+  .empty-state-title { font-size: 0.875rem; font-weight: 500; color: var(--text-2); letter-spacing: -0.01em; }
+  .empty-state-sub   { font-size: 0.8125rem; color: var(--text-3); }
 
   /* ─── Tabellen-Kopfzeile ────────────────────────────────────── */
   .table-header {
@@ -572,4 +531,174 @@ body.dark {
     margin-left: 0.2rem;
     letter-spacing: -0.01em;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — Komponenten-Overrides
+   Überschreibt gezielt die Component-Klassen für das Aurora-Design.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── App-Shell ────────────────────────────────────────────────── */
+body.dark .app-shell {
+  background-color: #050508;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+body.dark .sidebar {
+  background: rgba(5, 5, 10, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+body.dark .sidebar-divider {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* ── Mobile Topbar ────────────────────────────────────────────── */
+body.dark .mobile-topbar {
+  background: rgba(5, 5, 10, 0.90);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+/* ── Navigationslinks ─────────────────────────────────────────── */
+body.dark .nav-item {
+  color: rgba(255, 255, 255, 0.30);
+}
+body.dark .nav-item:hover {
+  color: rgba(255, 255, 255, 0.75);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+body.dark .nav-item.active {
+  color: #c084fc;
+  background-color: rgba(192, 132, 252, 0.10);
+}
+body.dark .nav-item.active::before {
+  background-color: #c084fc;
+}
+
+/* ── Karten ───────────────────────────────────────────────────── */
+body.dark .card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: none;
+}
+body.dark .card-accent {
+  border-color: rgba(192, 132, 252, 0.25);
+  box-shadow: 0 0 0 1px rgba(192, 132, 252, 0.08);
+}
+body.dark .stat-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+/* ── Primär-Button — Dark Mode Shimmer ────────────────────────── */
+body.dark .btn-primary {
+  box-shadow: 0 2px 16px rgba(192, 132, 252, 0.25);
+}
+body.dark .btn-primary:hover {
+  box-shadow: 0 4px 24px rgba(192, 132, 252, 0.40);
+}
+body.dark .btn-primary:disabled {
+  opacity: 0.45;
+  animation: none;
+  background: rgba(192,132,252,0.25);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ── Ghost-Button ─────────────────────────────────────────────── */
+body.dark .btn-ghost {
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+body.dark .btn-ghost:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+/* ── Danger-Button ────────────────────────────────────────────── */
+body.dark .btn-danger {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.22);
+}
+body.dark .btn-danger:hover {
+  background-color: rgba(248, 113, 113, 0.09);
+  border-color: rgba(248, 113, 113, 0.38);
+}
+
+/* ── Eingabefelder ────────────────────────────────────────────── */
+body.dark .input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: white;
+}
+body.dark .input:focus {
+  border-color: rgba(192, 132, 252, 0.55);
+  box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.12);
+}
+body.dark .input::placeholder {
+  color: rgba(255, 255, 255, 0.20);
+}
+body.dark select option {
+  background-color: #0c0c12;
+  color: white;
+}
+
+/* ── Fortschrittsbalken ───────────────────────────────────────── */
+body.dark .progress-track {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+body.dark .progress-fill {
+  background-color: var(--progress-color, #c084fc);
+}
+
+/* ── Session-Row ──────────────────────────────────────────────── */
+body.dark .session-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Live-Session-Indikator ───────────────────────────────────── */
+body.dark .session-live {
+  background-color: rgba(192, 132, 252, 0.10);
+  border-color: rgba(192, 132, 252, 0.20);
+}
+
+/* ── Theme-Toggle ─────────────────────────────────────────────── */
+body.dark .theme-switch:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Heatmap ──────────────────────────────────────────────────── */
+body.dark .heat-empty { background-color: rgba(255, 255, 255, 0.06); }
+body.dark .heat-low   { background-color: rgba(192, 132, 252, 0.18); }
+body.dark .heat-mid   { background-color: rgba(192, 132, 252, 0.40); }
+body.dark .heat-high  { background-color: rgba(192, 132, 252, 0.65); }
+body.dark .heat-max   { background-color: #c084fc; }
+
+/* ── Tags ─────────────────────────────────────────────────────── */
+body.dark .tag-neutral {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+body.dark .tag-green {
+  background-color: rgba(192, 132, 252, 0.12);
+  color: #c084fc;
+  border-color: rgba(192, 132, 252, 0.22);
+}
+
+/* ── Scrollbalken ─────────────────────────────────────────────── */
+body.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
 }
