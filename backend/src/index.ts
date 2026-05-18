@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import fs             from 'fs';
 import path           from 'path';
 import express        from 'express';
 import cors           from 'cors';
@@ -112,14 +113,15 @@ app.use('/api/goals',       goalsRoutes);
 app.use('/api/users',       usersRoutes);
 app.use('/api/achievements', achievementsRoutes);
 
-/* ── Frontend Static-File Serving (Production / Railway) ─────────
-   In Production wird das gebaute React-Frontend aus dem public/-
-   Verzeichnis ausgeliefert. Vite baut nach /public beim Docker-Build.
-   SPA-Fallback: Alle Nicht-API-Routen liefern index.html aus,
-   damit React Router clientseitig die Navigation übernimmt.         */
-if (config.isProduction) {
-  const publicDir = path.join(__dirname, '..', 'public');
+/* ── Frontend Static-File Serving ────────────────────────────────
+   Wenn das /public-Verzeichnis existiert (Docker-Build kopiert das
+   Vite-Bundle dorthin), wird es immer als statische Dateibasis
+   genutzt — unabhängig von NODE_ENV.
+   SPA-Fallback: alle Nicht-API-Routen → index.html, damit React
+   Router clientseitig die Navigation übernimmt.                    */
+const publicDir = path.join(__dirname, '..', 'public');
 
+if (fs.existsSync(publicDir)) {
   app.use(express.static(publicDir, {
     maxAge:  '1y',   // Statische Assets lang cachen (Vite-Hashes)
     etag:    true,
@@ -134,12 +136,12 @@ if (config.isProduction) {
     }
     res.sendFile(path.join(publicDir, 'index.html'));
   });
-} else {
-  /* ── 404 in Development ────────────────────────────────────── */
-  app.use((_req, res) => {
-    res.status(404).json({ error: 'Endpunkt nicht gefunden' });
-  });
 }
+
+/* ── 404 für unbekannte API-Routen ─────────────────────────────── */
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Endpunkt nicht gefunden' });
+});
 
 /* ── Zentraler Error-Handler ─────────────────────────────────────
    MUSS als letztes registriert sein — fängt alle next(err) ab.      */
