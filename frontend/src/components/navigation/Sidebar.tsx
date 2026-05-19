@@ -232,7 +232,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="px-2 mb-2">
           <div className="sidebar-divider mb-2" />
           <NavLink
-            to="/admin"
+            to="/admin/dashboard"
             onClick={onClose}
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
           >

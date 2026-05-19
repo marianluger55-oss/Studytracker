@@ -42,9 +42,13 @@ import { queryClient }     from './lib/queryClient';
 import { useSettingsStore } from './store/settingsStore';
 
 // Auth-Komponenten
-import AuthInitializer from './components/auth/AuthInitializer';
-import ProtectedRoute  from './components/auth/ProtectedRoute';
-import ErrorBoundary   from './components/ErrorBoundary';
+import AuthInitializer    from './components/auth/AuthInitializer';
+import ProtectedRoute     from './components/auth/ProtectedRoute';
+import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
+import ErrorBoundary      from './components/ErrorBoundary';
+
+// Admin-Layout (eigenes Top-Navbar-Layout, ohne Sidebar)
+import AdminLayout from './pages/Admin/AdminLayout';
 
 // Navigations-Komponenten
 import Sidebar        from './components/navigation/Sidebar';
@@ -67,7 +71,11 @@ const Statistics = lazy(() => import('./pages/Statistics/Statistics'));
 const Categories = lazy(() => import('./pages/Categories/Categories'));
 const Goals      = lazy(() => import('./pages/Goals/Goals'));
 const Settings   = lazy(() => import('./pages/Settings/Settings'));
-const Admin      = lazy(() => import('./pages/Admin/Admin'));
+
+// Admin-Panel: eigene Website mit eigenem Login (komplett getrennt von der App)
+const AdminLogin     = lazy(() => import('./pages/Admin/AdminLogin'));
+const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
+const AdminUsers     = lazy(() => import('./pages/Admin/AdminUsers'));
 
 // Legal-Seiten (selten besucht → ideal für Lazy Loading)
 const Impressum   = lazy(() => import('./pages/Legal/Impressum'));
@@ -253,6 +261,30 @@ function AppInner() {
         <Route path="/datenschutz" element={<Suspense fallback={<PageLoader />}><Datenschutz /></Suspense>} />
         <Route path="/agb"         element={<Suspense fallback={<PageLoader />}><AGB /></Suspense>}         />
 
+        {/* ── Admin-Panel (eigene Website, eigenes Login) ── */}
+        {/* Komplett getrennt von der Haupt-App — eigenes Layout, eigener Auth-Flow */}
+        <Route
+          path="/admin/login"
+          element={<Suspense fallback={<PageLoader />}><AdminLogin /></Suspense>}
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <AdminProtectedRoute>
+              <AdminLayout>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="users"     element={<AdminUsers />}     />
+                    {/* /admin → /admin/dashboard */}
+                    <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+                  </Routes>
+                </Suspense>
+              </AdminLayout>
+            </AdminProtectedRoute>
+          }
+        />
+
         {/* ── Geschützte App-Seiten (brauchen Login) ─────── */}
         {/* ProtectedRoute prüft Auth und zeigt Ladeindikator während Initialisierung */}
         <Route
@@ -272,7 +304,6 @@ function AppInner() {
                       <Route path="/categories" element={<Categories />}  />
                       <Route path="/goals"      element={<Goals />}       />
                       <Route path="/settings"   element={<Settings />}    />
-                      <Route path="/admin"      element={<Admin />}       />
                       {/* / innerhalb des geschützten Bereichs → Dashboard */}
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />
                       {/* Unbekannte Routen → Dashboard */}
