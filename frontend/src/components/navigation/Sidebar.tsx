@@ -8,8 +8,9 @@
 
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTheme }        from '../../hooks/useTheme';
-import { useSessionStore } from '../../store/sessionStore';  /* Für Live-Session-Indikator */
-import { formatTimer }     from '../../utils/time';          /* Sekunden → "HH:MM:SS" */
+import { useSessionStore } from '../../store/sessionStore';
+import { useAuthStore }    from '../../store/authStore';
+import { formatTimer }     from '../../utils/time';
 
 /* ── Props ───────────────────────────────────────────────────── */
 interface SidebarProps {
@@ -112,10 +113,8 @@ const legalLinks = [
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark, toggle } = useTheme();
   const navigate = useNavigate();
-
-  /* activeSession: laufende Session (null = kein Timer aktiv) */
-  /* isRunning: true wenn der Timer gerade tickt */
   const { activeSession, isRunning } = useSessionStore();
+  const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
 
   return (
     /* Sidebar-Wrapper: fixed links, volle Höhe, z-50 über Backdrop */
@@ -227,6 +226,25 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         ))}
       </nav>
+
+      {/* ── Admin-Link (nur für Admins) ──────────────────────── */}
+      {isAdmin && (
+        <div className="px-2 mb-2">
+          <div className="sidebar-divider mb-2" />
+          <NavLink
+            to="/admin"
+            onClick={onClose}
+            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5 flex-shrink-0">
+              <circle cx="8" cy="5" r="2.5" />
+              <path d="M2 13.5c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round" />
+              <path d="M11.5 9.5l1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="text-[13px]">Admin</span>
+          </NavLink>
+        </div>
+      )}
 
       {/* ── Rechtliche Links ─────────────────────────────────── */}
       <div className="px-3 py-3">

@@ -56,7 +56,7 @@ export async function register(email: string, password: string, username: string
     const userResult = await client.query<UserRow>(
       `INSERT INTO users (email, password_hash, username)
        VALUES ($1, $2, $3)
-       RETURNING id, email, username, created_at, password_hash`,
+       RETURNING id, email, username, role, created_at, password_hash`,
       [email.toLowerCase(), password_hash, username]
     );
     const user = userResult.rows[0];
@@ -146,7 +146,7 @@ export async function refreshAccessToken(token: string) {
 
     // Benutzer laden (nur aktive)
     const userResult = await client.query<UserRow>(
-      'SELECT id, email, username, created_at, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT id, email, username, role, created_at, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
       [userId]
     );
     const user = userResult.rows[0];
@@ -188,7 +188,7 @@ export async function logout(token: string | undefined) {
 /* ── getMe ─────────────────────────────────────────────────────── */
 export async function getMe(userId: number) {
   const result = await pool.query<UserRow>(
-    'SELECT id, email, username, created_at, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
+    'SELECT id, email, username, role, created_at, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
     [userId]
   );
   if (!result.rows[0]) throw new AppError(404, 'Benutzer nicht gefunden');
