@@ -4,7 +4,7 @@
  * der Benutzer nicht eingeloggt oder kein Admin ist.
  */
 
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore }          from '../../store/authStore';
 
 export default function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
