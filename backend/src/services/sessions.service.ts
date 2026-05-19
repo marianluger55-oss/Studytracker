@@ -9,8 +9,9 @@
  * ─────────────────────────────────────────────────────────────
  */
 
-import { pool } from '../db/pool';
-import { SessionRow } from '../types';
+import { pool }                    from '../db/pool';
+import { SessionRow }              from '../types';
+import { invalidateUserCache }     from './stats.service';
 
 /* ── createSession ───────────────────────────────────────────── */
 // Speichert eine abgeschlossene Lernsession in der Datenbank.
@@ -29,7 +30,8 @@ export async function createSession(
     [userId, categoryId ?? null, startTime, endTime, duration, notes ?? null]
   );
 
-  return result.rows[0]; // Neu erstellte Session zurückgeben
+  await invalidateUserCache(userId); // Stats-Cache nach neuer Session invalidieren
+  return result.rows[0];
 }
 
 /* ── getSessions ─────────────────────────────────────────────── */
@@ -95,6 +97,7 @@ export async function deleteSession(sessionId: number, userId: number): Promise<
     [sessionId, userId]
   );
 
-  // rowCount > 0 bedeutet, eine Zeile wurde wirklich gelöscht
-  return (result.rowCount ?? 0) > 0;
+  const deleted = (result.rowCount ?? 0) > 0;
+  if (deleted) await invalidateUserCache(userId);
+  return deleted;
 }

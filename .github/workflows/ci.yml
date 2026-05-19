@@ -7,13 +7,33 @@ on:
     branches: [main]
 
 jobs:
-  # ── Backend: TypeScript-Kompilierung + Dependency-Audit ──────────
+  # ── Backend: TypeScript + Tests + Audit ──────────────────────────
   backend:
-    name: Backend Build & Audit
+    name: Backend Build & Test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB:       studytracker_test
+          POSTGRES_USER:     postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/studytracker_test
+      JWT_SECRET:   test-secret-min-32-chars-long!!!
+      NODE_ENV:     test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,13 +46,19 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      # Bekannte Sicherheitslücken in Abhängigkeiten prüfen
       - name: Dependency-Audit
         run: npm audit --audit-level=high
 
-      # TypeScript kompilieren — schlägt fehl bei Typfehlern
       - name: TypeScript Build
         run: npm run build
+
+      # Migrationen für die Test-Datenbank ausführen
+      - name: DB Migrationen
+        run: node dist/db/migrate.js
+
+      # Integrationstests gegen echte Test-Datenbank
+      - name: Tests ausführen
+        run: npm test
 
   # ── Frontend: TypeScript + Vite Build + Dependency-Audit ─────────
   frontend:

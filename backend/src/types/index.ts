@@ -17,7 +17,8 @@ import { Request } from 'express';
 export interface UserRow {
   id:            number;
   email:         string;
-  password_hash: string; // Niemals ans Frontend senden!
+  password_hash: string;
+  role:          'user' | 'admin';
   username:      string;
   created_at:    Date;
 }

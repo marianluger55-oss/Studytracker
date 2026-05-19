@@ -23,6 +23,9 @@ export const config = {
   jwtSecret:   requireEnv('JWT_SECRET'),
   databaseUrl: requireEnv('DATABASE_URL'),
 
+  // ── Redis (optional — App läuft ohne Redis weiter) ───────────
+  redisUrl:     process.env.REDIS_URL?.trim() ?? '',
+
   // ── Server ───────────────────────────────────────────────────
   nodeEnv:      optionalEnv('NODE_ENV', 'development'),
   port:         parseInt(optionalEnv('PORT', '3001'), 10),

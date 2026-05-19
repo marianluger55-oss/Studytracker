@@ -67,6 +67,7 @@ const Statistics = lazy(() => import('./pages/Statistics/Statistics'));
 const Categories = lazy(() => import('./pages/Categories/Categories'));
 const Goals      = lazy(() => import('./pages/Goals/Goals'));
 const Settings   = lazy(() => import('./pages/Settings/Settings'));
+const Admin      = lazy(() => import('./pages/Admin/Admin'));
 
 // Legal-Seiten (selten besucht → ideal für Lazy Loading)
 const Impressum   = lazy(() => import('./pages/Legal/Impressum'));
@@ -271,6 +272,7 @@ function AppInner() {
                       <Route path="/categories" element={<Categories />}  />
                       <Route path="/goals"      element={<Goals />}       />
                       <Route path="/settings"   element={<Settings />}    />
+                      <Route path="/admin"      element={<Admin />}       />
                       {/* / innerhalb des geschützten Bereichs → Dashboard */}
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />
                       {/* Unbekannte Routen → Dashboard */}

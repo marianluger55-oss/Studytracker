@@ -10,10 +10,11 @@
 /* ── Benutzer ────────────────────────────────────────────────── */
 // Repräsentiert einen eingeloggten Benutzer (ohne Passwort-Hash)
 export interface User {
-  id: number;        // Eindeutige Datenbankid
-  email: string;     // E-Mail-Adresse
-  username: string;  // Anzeigename
-  createdAt: string; // ISO-Datumsstring der Registrierung
+  id:        number;
+  email:     string;
+  username:  string;
+  createdAt: string;
+  role?:     'user' | 'admin';
 }
 
 /* ── Standard API-Wrapper ────────────────────────────────────── */

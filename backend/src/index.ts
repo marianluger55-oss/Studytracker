@@ -25,6 +25,7 @@ import statsRoutes         from './routes/stats.routes';
 import goalsRoutes         from './routes/goals.routes';
 import usersRoutes         from './routes/users.routes';
 import achievementsRoutes  from './routes/achievements.routes';
+import adminRoutes         from './routes/admin.routes';
 
 const app = express();
 
@@ -99,23 +100,45 @@ app.use((req, res, next) => {
 app.use('/api', generalLimiter);
 
 /* ── Health-Checks ───────────────────────────────────────────────
-   Müssen VOR den API-Routen stehen damit Railway den Check findet. */
+   Müssen VOR den API-Routen stehen damit Railway den Check findet.
+   /health        → Uptime-Monitor-Endpunkt (schnell, kein DB-Check)
+   /health/detail → Vollständiger Check (DB + Redis + Speicher)    */
 app.get('/health', (_req, res) => {
   res.json({
     status:    'ok',
     timestamp: new Date().toISOString(),
     uptime:    Math.floor(process.uptime()),
     env:       config.nodeEnv,
+    version:   process.env.npm_package_version ?? '1.0.0',
   });
 });
 
-/* /health/db: prüft ob die Datenbank erreichbar ist */
 app.get('/health/db', async (_req, res) => {
   const { ok, latencyMs } = await checkDbConnection();
   res.status(ok ? 200 : 503).json({
     status:    ok ? 'ok' : 'unreachable',
     latencyMs,
     timestamp: new Date().toISOString(),
+  });
+});
+
+/* Detaillierter Health-Check — für Monitoring-Dashboards */
+app.get('/health/detail', async (_req, res) => {
+  const { ok: dbOk, latencyMs: dbLatency } = await checkDbConnection();
+  const mem = process.memoryUsage();
+  res.status(dbOk ? 200 : 503).json({
+    status:    dbOk ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime:    Math.floor(process.uptime()),
+    checks: {
+      database: { status: dbOk ? 'ok' : 'error', latencyMs: dbLatency },
+      redis:    { status: process.env.REDIS_URL ? 'configured' : 'not-configured' },
+    },
+    memory: {
+      heapUsedMB:  Math.round(mem.heapUsed  / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      rssMB:       Math.round(mem.rss       / 1024 / 1024),
+    },
   });
 });
 
@@ -127,6 +150,7 @@ app.use('/api/stats',       statsRoutes);
 app.use('/api/goals',       goalsRoutes);
 app.use('/api/users',       usersRoutes);
 app.use('/api/achievements', achievementsRoutes);
+app.use('/api/admin',        adminRoutes);
 
 /* ── Frontend Static-File Serving ────────────────────────────────
    Wenn das /public-Verzeichnis existiert (Docker-Build kopiert das

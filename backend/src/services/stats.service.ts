@@ -1,16 +1,19 @@
 /*
  * services/stats.service.ts
  * Alle Statistik-Berechnungen vollständig in SQL — kein JS-Loop.
- *
- * getSummary liefert das vollständige Dashboard-Payload:
- *  - totalMinutes, todayMinutes, weekMinutes, sessionCount
- *  - currentStreak, longestStreak (beide via SQL Window-Funktion)
+ * Redis-Caching (TTL 5 Min) vermeidet wiederholte schwere Queries.
+ * Fallback: läuft ohne Redis weiter (cacheGet gibt null zurück).
  */
 
-import { pool } from '../db/pool';
+import { pool }                         from '../db/pool';
+import { cacheGet, cacheSet, cacheDel } from '../db/redis';
 
 /* ── getWeekStats ──────────────────────────────────────────────── */
 export async function getWeekStats(userId: number) {
+  const key    = `stats:week:${userId}`;
+  const cached = await cacheGet(key);
+  if (cached) return JSON.parse(cached);
+
   const result = await pool.query(
     `SELECT
        date_trunc('day', start_time AT TIME ZONE 'UTC') AS date,
@@ -21,14 +24,20 @@ export async function getWeekStats(userId: number) {
      ORDER BY date ASC`,
     [userId]
   );
-  return result.rows.map((row) => ({
+  const data = result.rows.map((row) => ({
     date:    row.date,
     minutes: Math.floor(row.total_seconds / 60),
   }));
+  await cacheSet(key, JSON.stringify(data), 300);
+  return data;
 }
 
 /* ── getMonthStats ─────────────────────────────────────────────── */
 export async function getMonthStats(userId: number) {
+  const key    = `stats:month:${userId}`;
+  const cached = await cacheGet(key);
+  if (cached) return JSON.parse(cached);
+
   const result = await pool.query(
     `SELECT
        date_trunc('week', start_time AT TIME ZONE 'UTC') AS week_start,
@@ -39,14 +48,20 @@ export async function getMonthStats(userId: number) {
      ORDER BY week_start ASC`,
     [userId]
   );
-  return result.rows.map((row) => ({
+  const data = result.rows.map((row) => ({
     weekStart: row.week_start,
     minutes:   Math.floor(row.total_seconds / 60),
   }));
+  await cacheSet(key, JSON.stringify(data), 300);
+  return data;
 }
 
 /* ── getCategoryStats ──────────────────────────────────────────── */
 export async function getCategoryStats(userId: number) {
+  const key    = `stats:categories:${userId}`;
+  const cached = await cacheGet(key);
+  if (cached) return JSON.parse(cached);
+
   const result = await pool.query(
     `SELECT
        c.id,
@@ -61,29 +76,43 @@ export async function getCategoryStats(userId: number) {
      ORDER BY total_seconds DESC`,
     [userId]
   );
-  return result.rows.map((row) => ({
+  const data = result.rows.map((row) => ({
     id:           row.id,
     name:         row.name,
     color:        row.color,
     totalMinutes: Math.floor(row.total_seconds / 60),
     sessionCount: row.session_count,
   }));
+  await cacheSet(key, JSON.stringify(data), 300);
+  return data;
+}
+
+/* ── invalidateUserCache ───────────────────────────────────────── */
+/* Alle Stats-Cache-Einträge eines Users löschen — nach jeder Session-Änderung aufrufen */
+export async function invalidateUserCache(userId: number): Promise<void> {
+  await cacheDel(
+    `stats:summary:${userId}`,
+    `stats:week:${userId}`,
+    `stats:month:${userId}`,
+    `stats:categories:${userId}`,
+  );
 }
 
 /* ── getSummary ────────────────────────────────────────────────── */
-// Single-query dashboard payload: Streak mit SQL Gruppen-Differenz-Methode,
-// kein O(n²) JS-Loop. Liefert alle Dashboard-Kennzahlen in einer DB-Anfrage.
+/* Single-query dashboard payload — mit 5-Min-Redis-Cache */
 export async function getSummary(userId: number) {
+  const key    = `stats:summary:${userId}`;
+  const cached = await cacheGet(key);
+  if (cached) return JSON.parse(cached);
+
   const [totalResult, todayResult, weekResult, countResult, streakResult] = await Promise.all([
 
-    /* Gesamt-Lernzeit aller Zeiten */
     pool.query(
       `SELECT COALESCE(SUM(duration), 0)::integer AS total_seconds
        FROM sessions WHERE user_id = $1`,
       [userId]
     ),
 
-    /* Lernzeit heute (UTC-Taggrenze) */
     pool.query(
       `SELECT COALESCE(SUM(duration), 0)::integer AS total_seconds
        FROM sessions
@@ -93,7 +122,6 @@ export async function getSummary(userId: number) {
       [userId]
     ),
 
-    /* Lernzeit diese Woche (letzten 7 Tage) */
     pool.query(
       `SELECT COALESCE(SUM(duration), 0)::integer AS total_seconds
        FROM sessions
@@ -102,15 +130,12 @@ export async function getSummary(userId: number) {
       [userId]
     ),
 
-    /* Session-Anzahl gesamt */
     pool.query(
       `SELECT COUNT(*)::integer AS count FROM sessions WHERE user_id = $1`,
       [userId]
     ),
 
-    /* Current + Longest Streak via SQL Window-Funktion (Gruppen-Differenz)
-       Jeder zusammenhängende Block aufeinanderfolgender Tage erhält dieselbe
-       "grp" durch subtrahierte ROW_NUMBER — damit können wir COUNT() darauf. */
+    /* Streak via SQL Gruppen-Differenz-Methode */
     pool.query(
       `WITH daily AS (
          SELECT DISTINCT
@@ -122,23 +147,20 @@ export async function getSummary(userId: number) {
          SELECT study_date,
                 study_date
                   - (ROW_NUMBER() OVER (ORDER BY study_date))::int
-                  * INTERVAL '1 day'                              AS grp
+                  * INTERVAL '1 day' AS grp
          FROM daily
        ),
        groups AS (
-         SELECT
-           COUNT(*)::integer AS len,
-           MIN(study_date)   AS first_date,
-           MAX(study_date)   AS last_date
-         FROM numbered
-         GROUP BY grp
+         SELECT COUNT(*)::integer AS len,
+                MIN(study_date)   AS first_date,
+                MAX(study_date)   AS last_date
+         FROM numbered GROUP BY grp
        )
        SELECT
          COALESCE(
            (SELECT len FROM groups
             WHERE last_date >= CURRENT_DATE - INTERVAL '1 day'
-            ORDER BY last_date DESC
-            LIMIT 1),
+            ORDER BY last_date DESC LIMIT 1),
            0
          ) AS current_streak,
          COALESCE(MAX(len), 0) AS longest_streak
@@ -148,8 +170,7 @@ export async function getSummary(userId: number) {
   ]);
 
   const streak = streakResult.rows[0];
-
-  return {
+  const data = {
     totalMinutes:  Math.floor(totalResult.rows[0].total_seconds / 60),
     todayMinutes:  Math.floor(todayResult.rows[0].total_seconds / 60),
     weekMinutes:   Math.floor(weekResult.rows[0].total_seconds / 60),
@@ -157,4 +178,6 @@ export async function getSummary(userId: number) {
     currentStreak: streak.current_streak,
     longestStreak: streak.longest_streak,
   };
+  await cacheSet(key, JSON.stringify(data), 300);
+  return data;
 }

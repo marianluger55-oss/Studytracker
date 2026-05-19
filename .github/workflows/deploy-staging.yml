@@ -1,0 +1,24 @@
+name: Deploy Staging
+
+# Staging-Deployment: nur bei Push auf den staging-Branch
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  deploy:
+    name: Railway Staging Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Railway CLI für Deployment nutzen
+      - name: Railway CLI installieren
+        run: npm install -g @railway/cli
+
+      # Deployment auf das Staging-Projekt anstoßen
+      # RAILWAY_STAGING_TOKEN muss in GitHub Secrets hinterlegt sein
+      - name: Auf Railway Staging deployen
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+        run: railway up --service studytracker-staging --detach
