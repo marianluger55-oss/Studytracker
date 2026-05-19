@@ -75,8 +75,8 @@ export default function AdminUsers() {
       });
       if (search)     p.set('search', search);
       if (roleFilter) p.set('role',   roleFilter);
-      const { data } = await apiClient.get(`/admin/users?${p}`);
-      return data.data;
+      const { data } = await apiClient.get<{ users: AdminUser[]; total: number }>(`/admin/users?${p}`);
+      return data;
     },
   });
 
@@ -84,8 +84,8 @@ export default function AdminUsers() {
   const { data: detail, isLoading: detailLoading } = useQuery<UserDetail>({
     queryKey: ['admin', 'user', detailId],
     queryFn:  async () => {
-      const { data } = await apiClient.get(`/admin/users/${detailId}`);
-      return data.data;
+      const { data } = await apiClient.get<UserDetail>(`/admin/users/${detailId}`);
+      return data;
     },
     enabled: detailId !== null,
   });

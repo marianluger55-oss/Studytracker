@@ -124,21 +124,21 @@ export default function AdminDashboard() {
   /* Stats — alle 30 Sekunden */
   const { data: stats } = useQuery<PlatformStats>({
     queryKey: ['admin', 'stats'],
-    queryFn:  async () => { const { data } = await apiClient.get('/admin/stats'); return data.data; },
+    queryFn:  async () => { const { data } = await apiClient.get<PlatformStats>('/admin/stats'); return data; },
     refetchInterval: 30_000,
   });
 
   /* Wachstums-Daten — jede Minute */
   const { data: growth } = useQuery<GrowthData>({
     queryKey: ['admin', 'growth'],
-    queryFn:  async () => { const { data } = await apiClient.get('/admin/growth'); return data.data; },
+    queryFn:  async () => { const { data } = await apiClient.get<GrowthData>('/admin/growth'); return data; },
     refetchInterval: 60_000,
   });
 
   /* Aktivitätsfeed — alle 5 Sekunden */
   const { data: activity } = useQuery<ActivityEvent[]>({
     queryKey: ['admin', 'activity'],
-    queryFn:  async () => { const { data } = await apiClient.get('/admin/activity?limit=30'); return data.data; },
+    queryFn:  async () => { const { data } = await apiClient.get<ActivityEvent[]>('/admin/activity?limit=30'); return data; },
     refetchInterval: 5_000,
   });
 

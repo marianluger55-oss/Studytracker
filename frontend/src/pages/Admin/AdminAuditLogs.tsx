@@ -83,10 +83,10 @@ export default function AdminAuditLogs() {
         limit:  String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       };
-      const { data } = await apiClient.get<{ success: boolean; data: AuditResponse }>(
+      const { data } = await apiClient.get<AuditResponse>(
         '/admin/audit', { params },
       );
-      return data.data;
+      return data;
     },
     /* Alle 30s aktualisieren */
     refetchInterval: 30_000,
