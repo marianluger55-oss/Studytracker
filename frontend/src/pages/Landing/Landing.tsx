@@ -1234,21 +1234,32 @@ function AllInOneSection() {
               <p className="text-white/35 text-xs mb-6">Lernstunden pro Tag</p>
 
               {/* Balkendiagramm — Balken wachsen beim Einblenden */}
-              <div className="flex items-end gap-2 h-32 mb-3">
-                {bars.map((bar, i) => (
-                  <div key={bar.day} className="flex-1 flex flex-col items-center gap-1">
-                    <motion.div
-                      className={`w-full rounded-t-lg ${bar.hot ? 'bg-gradient-to-t from-pink-500 to-purple-500' : 'bg-white/20'}`}
-                      style={{ height: `${bar.h}%`, transformOrigin: 'bottom' }}
-                      initial={{ scaleY: 0 }}
-                      animate={rightIn ? { scaleY: 1 } : {}}
-                      transition={{ delay: i * 0.08 + 0.2, duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
-                    />
-                    <span className={`text-[9px] font-medium ${bar.hot ? 'text-white' : 'text-white/30'}`}>
-                      {bar.day}
-                    </span>
-                  </div>
-                ))}
+              {/* Aufbau: relative Container für absolute Balken + separate Label-Zeile */}
+              <div className="mb-3">
+                <div className="relative h-28 flex gap-1.5">
+                  {bars.map((bar, i) => (
+                    <div key={bar.day} className="flex-1 relative">
+                      <motion.div
+                        className={`absolute bottom-0 left-0 right-0 rounded-t-md ${bar.hot ? 'bg-gradient-to-t from-pink-500 to-purple-400' : 'bg-white/20'}`}
+                        /* originY: 1 = Framer-Motion "bottom" — Balken wächst von unten nach oben */
+                        style={{ height: `${bar.h}%`, originY: 1 }}
+                        initial={{ scaleY: 0 }}
+                        animate={rightIn ? { scaleY: 1 } : { scaleY: 0 }}
+                        transition={{ delay: i * 0.08 + 0.2, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Tageslabels unterhalb der Balken */}
+                <div className="flex gap-1.5 mt-1.5">
+                  {bars.map((bar) => (
+                    <div key={bar.day} className="flex-1 flex justify-center">
+                      <span className={`text-[9px] font-semibold ${bar.hot ? 'text-white' : 'text-white/35'}`}>
+                        {bar.day}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Stats-Grid */}
