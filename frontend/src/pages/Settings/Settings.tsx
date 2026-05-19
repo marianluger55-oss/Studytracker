@@ -100,6 +100,16 @@ export default function Settings() {
     },
   });
 
+  /* ── Logout-All-Mutation ─────────────────────────────────── */
+  const [logoutAllConfirm, setLogoutAllConfirm] = useState(false);
+  const logoutAllMutation = useMutation({
+    mutationFn: async () => { await apiClient.post('/auth/logout-all'); },
+    onSuccess: () => {
+      useAuthStore.getState().clearAuth();
+      window.location.href = '/login';
+    },
+  });
+
   /* ── Handler ────────────────────────────────────────────── */
   const handleSaveProfile = () => {
     if (!username.trim()) {
@@ -211,6 +221,45 @@ export default function Settings() {
             {passwordMutation.isPending ? 'Wird geändert…' : 'Passwort ändern'}
           </button>
         </div>
+      </div>
+
+      {/* ── Sicherheit ───────────────────────────────────────── */}
+      <div className="card">
+        <p className="card-title">Sicherheit</p>
+        <p className="text-sm text-[var(--text-2)] mb-4">
+          Meldet dich auf allen anderen Geräten ab und macht alle aktiven Sitzungen ungültig.
+        </p>
+        {logoutAllConfirm ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[var(--text-2)]">Wirklich alle Geräte abmelden?</span>
+            <button
+              type="button"
+              onClick={() => logoutAllMutation.mutate()}
+              disabled={logoutAllMutation.isPending}
+              className="btn-danger text-sm disabled:opacity-50"
+            >
+              {logoutAllMutation.isPending ? 'Wird abgemeldet…' : 'Ja, abmelden'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogoutAllConfirm(false)}
+              className="btn-ghost text-sm"
+            >
+              Abbrechen
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setLogoutAllConfirm(true)}
+            className="btn-ghost text-sm"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5">
+              <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10 11l3-3-3-3M13 8H6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Von allen Geräten abmelden
+          </button>
+        )}
       </div>
 
       {/* ── Timer ────────────────────────────────────────────── */}

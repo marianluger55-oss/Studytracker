@@ -12,8 +12,9 @@
  */
 
 import { Router } from 'express';
-import { auth }      from '../middleware/auth';
-import { adminAuth } from '../middleware/adminAuth';
+import { auth }         from '../middleware/auth';
+import { adminAuth }    from '../middleware/adminAuth';
+import { adminLimiter } from '../middleware/rateLimiter';
 import {
   getUsers, getPlatformStats, getGrowthData, getRecentActivity,
   getUserDetail, revokeSessions, updateUserRole, deleteUser,
@@ -21,8 +22,8 @@ import {
 
 const router = Router();
 
-/* Alle Admin-Routen brauchen auth + adminAuth */
-router.use(auth, adminAuth);
+/* Alle Admin-Routen: eigenes Rate-Limit + auth + Role-Check */
+router.use(adminLimiter, auth, adminAuth);
 
 router.get('/stats',                       getPlatformStats);
 router.get('/growth',                      getGrowthData);

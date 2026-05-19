@@ -68,10 +68,23 @@ export async function changePassword(
   if (!valid) throw new AppError(401, 'Aktuelles Passwort falsch');
 
   const newHash = await bcrypt.hash(newPassword, 12);
-  await pool.query(
-    'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-    [newHash, userId]
-  );
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [newHash, userId],
+    );
+    /* Alle Refresh-Tokens invalidieren — zwingt Re-Login auf allen Geräten */
+    await client.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /* ── exportData ────────────────────────────────────────────────── */

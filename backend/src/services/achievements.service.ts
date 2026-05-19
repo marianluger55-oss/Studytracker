@@ -22,7 +22,7 @@ export interface AchievementWithStatus {
 /* ── Kriterien-Prüfung und automatisches Entsperren ────────────── */
 async function checkAndUnlock(userId: number): Promise<void> {
   // Alle Nutzer-Statistiken in einem Batch laden
-  const [statsRow, earlyRow, nightRow, catRow, pomRow] = await Promise.all([
+  const [statsRow, earlyRow, nightRow, catRow, pomRow, goalRow] = await Promise.all([
 
     // Gesamt-Sessions, Gesamt-Minuten, aktueller Streak
     pool.query<{ session_count: number; total_minutes: number; current_streak: number }>(
@@ -72,21 +72,35 @@ async function checkAndUnlock(userId: number): Promise<void> {
       [userId]
     ),
 
-    // Pomodoro-Fan: mindestens 10 Pomodoro-Sessions
+    // Pomodoro-Fan: mindestens 10 Sessions
     pool.query<{ count: number }>(
-      `SELECT COUNT(*)::integer AS count FROM sessions
-       WHERE user_id = $1 AND mode = 'pomodoro'`,
+      `SELECT COUNT(*)::integer AS count FROM sessions WHERE user_id = $1`,
+      [userId]
+    ),
+
+    // Wochenziel erreicht: aktuelle Woche >= wöchentliches Ziel
+    pool.query<{ reached: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM goals g
+         WHERE g.user_id = $1 AND g.period = 'weekly'
+         AND (
+           SELECT COALESCE(SUM(s.duration), 0)
+           FROM sessions s
+           WHERE s.user_id = $1
+             AND s.start_time >= date_trunc('week', NOW())
+         ) >= g.target_hours * 3600
+       ) AS reached`,
       [userId]
     ),
   ]);
 
-  const stats = statsRow.rows[0];
+  const stats      = statsRow.rows[0];
   const earlyCount = earlyRow.rows[0].count;
   const nightCount = nightRow.rows[0].count;
   const catCount   = catRow.rows[0].count;
   const pomCount   = pomRow.rows[0].count;
+  const goalReached = goalRow.rows[0]?.reached ?? false;
 
-  // Welche Achievement-Keys der Nutzer entsperren soll
   const toUnlock: string[] = [];
 
   if (stats.session_count >= 1)    toUnlock.push('first_session');
@@ -98,6 +112,7 @@ async function checkAndUnlock(userId: number): Promise<void> {
   if (nightCount >= 1)             toUnlock.push('night_owl');
   if (catCount >= 5)               toUnlock.push('five_categories');
   if (pomCount >= 10)              toUnlock.push('pomodoro_10');
+  if (goalReached)                 toUnlock.push('goal_reached');
 
   if (toUnlock.length === 0) return;
 

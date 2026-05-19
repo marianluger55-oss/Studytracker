@@ -52,3 +52,12 @@ export const strictLimiter = createLimiter(
   10,
   'Zu viele Anfragen an diesen Endpunkt.',
 );
+
+/* ── Admin-Limiter ────────────────────────────────────────────────
+   60 Anfragen pro Minute — Admin-Panel pollt häufig (Activity-Feed 5s),
+   aber deutlich strenger als der allgemeine Limiter (200/min) */
+export const adminLimiter = createLimiter(
+  60 * 1000,
+  60,
+  'Zu viele Admin-Anfragen.',
+);
