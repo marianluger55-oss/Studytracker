@@ -1,11 +1,12 @@
 /*
  * pages/Admin/AdminUsers.tsx
- * Benutzerverwaltung im Admin-Panel: Tabelle, Rollen-Toggle, Löschen, Pagination.
+ * Benutzerverwaltung: Suche, Rollenfilter, Rollen-Toggle,
+ * Sessions widerrufen, Löschen, Nutzerdetail-Panel.
  */
 
-import { useState }                              from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient                                 from '../../services/apiClient';
+import { useState, useEffect }                    from 'react';
+import { useQuery, useMutation, useQueryClient }  from '@tanstack/react-query';
+import apiClient                                  from '../../services/apiClient';
 
 /* ── Typen ────────────────────────────────────────────────────── */
 interface AdminUser {
@@ -19,74 +20,174 @@ interface AdminUser {
   totalMinutes: number;
 }
 
-/* ── Hilfsfunktion: Minuten → "Xh Ym" ───────────────────────── */
+interface UserDetail {
+  id:             number;
+  email:          string;
+  username:       string;
+  role:           'user' | 'admin';
+  createdAt:      string;
+  deletedAt:      string | null;
+  totalSessions:  number;
+  totalMinutes:   number;
+  lastSession:    string | null;
+  recentSessions: { id: number; startTime: string; minutes: number; category: string }[];
+}
+
+/* ── Hilfsfunktionen ──────────────────────────────────────────── */
 function fmtTime(minutes: number) {
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function fmtDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
 }
 
 const PAGE_SIZE = 20;
 
 export default function AdminUsers() {
-  const queryClient           = useQueryClient();
-  const [page, setPage]       = useState(0);
-  const [confirm, setConfirm] = useState<number | null>(null);
+  const qc                              = useQueryClient();
+  const [page,        setPage]          = useState(0);
+  const [searchInput, setSearchInput]   = useState('');
+  const [search,      setSearch]        = useState('');
+  const [roleFilter,  setRoleFilter]    = useState('');
+  const [confirm,     setConfirm]       = useState<number | null>(null);
+  const [detailId,    setDetailId]      = useState<number | null>(null);
+  const [revokeOk,    setRevokeOk]      = useState<number | null>(null);
 
-  /* ── Benutzerliste laden ──────────────────────────────────────── */
+  /* Suche: 300ms debounce, Seite zurücksetzen */
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setPage(0); }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  /* Rollenfilter → Seite zurücksetzen */
+  useEffect(() => setPage(0), [roleFilter]);
+
+  /* ── Benutzerliste ────────────────────────────────────────── */
   const { data, isLoading } = useQuery<{ users: AdminUser[]; total: number }>({
-    queryKey: ['admin', 'users', page],
+    queryKey: ['admin', 'users', page, search, roleFilter],
     queryFn: async () => {
-      const { data } = await apiClient.get(
-        `/admin/users?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`
-      );
+      const p = new URLSearchParams({
+        limit:  String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
+      });
+      if (search)     p.set('search', search);
+      if (roleFilter) p.set('role',   roleFilter);
+      const { data } = await apiClient.get(`/admin/users?${p}`);
       return data.data;
     },
   });
 
-  /* ── Rolle ändern ─────────────────────────────────────────────── */
-  const roleMutation = useMutation({
-    mutationFn: async ({ id, role }: { id: number; role: 'user' | 'admin' }) => {
-      await apiClient.patch(`/admin/users/${id}/role`, { role });
+  /* ── Nutzerprofil ─────────────────────────────────────────── */
+  const { data: detail, isLoading: detailLoading } = useQuery<UserDetail>({
+    queryKey: ['admin', 'user', detailId],
+    queryFn:  async () => {
+      const { data } = await apiClient.get(`/admin/users/${detailId}`);
+      return data.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    enabled: detailId !== null,
   });
 
-  /* ── Benutzer löschen ─────────────────────────────────────────── */
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiClient.delete(`/admin/users/${id}`);
+  /* ── Rolle ändern ─────────────────────────────────────────── */
+  const roleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: 'user' | 'admin' }) =>
+      apiClient.patch(`/admin/users/${id}/role`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
+  /* ── Sessions widerrufen ──────────────────────────────────── */
+  const revokeMutation = useMutation({
+    mutationFn: (id: number) => apiClient.post(`/admin/users/${id}/revoke-sessions`),
+    onSuccess: (_, id) => {
+      setRevokeOk(id);
+      setTimeout(() => setRevokeOk(null), 2500);
     },
+  });
+
+  /* ── Löschen ──────────────────────────────────────────────── */
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/admin/users/${id}`),
     onSuccess: () => {
       setConfirm(null);
-      queryClient.invalidateQueries({ queryKey: ['admin'] });
+      if (detailId === confirm) setDetailId(null);
+      qc.invalidateQueries({ queryKey: ['admin'] });
     },
   });
 
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
 
-      {/* ── Header ─────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────── */}
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">Benutzer</h1>
         <p className="text-sm text-white/40 mt-1">
-          {data ? `${data.total} registrierte Accounts` : 'Wird geladen…'}
+          {data ? `${data.total} Account${data.total === 1 ? '' : 's'} gefunden` : 'Wird geladen…'}
         </p>
       </div>
 
-      {/* ── Tabelle ─────────────────────────────────────────────── */}
-      <div className="bg-white/[0.03] border border-white/8 rounded-xl overflow-hidden">
+      {/* ── Suche + Filter ──────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3">
 
-        {/* Tabellen-Header */}
-        <div className="px-5 py-3.5 border-b border-white/8 flex items-center justify-between">
-          <p className="text-sm font-semibold text-white/70">Alle Nutzer</p>
-          <span className="text-xs text-white/30">{data?.total ?? '–'} gesamt</span>
+        {/* Suchfeld */}
+        <div className="relative flex-1">
+          <svg
+            viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none"
+          >
+            <circle cx="6.5" cy="6.5" r="4.5" />
+            <path d="M10 10l3.5 3.5" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Name oder E-Mail suchen…"
+            className="w-full bg-white/[0.05] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/25 transition"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/50 transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          )}
         </div>
 
-        {/* Skeleton-Loader */}
+        {/* Rollenfilter */}
+        <div className="flex gap-1.5">
+          {([
+            { val: '',      label: 'Alle'  },
+            { val: 'user',  label: 'User'  },
+            { val: 'admin', label: 'Admin' },
+          ] as const).map(({ val, label }) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setRoleFilter(val)}
+              className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                roleFilter === val
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  : 'bg-white/[0.05] text-white/45 border border-white/10 hover:text-white/70 hover:bg-white/[0.08]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Benutzertabelle ─────────────────────────────────── */}
+      <div className="bg-white/[0.03] border border-white/8 rounded-xl overflow-hidden">
+
         {isLoading ? (
           <div className="p-5 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-12 rounded-lg bg-white/[0.04] animate-pulse" />
             ))}
           </div>
@@ -94,7 +195,7 @@ export default function AdminUsers() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/8 text-white/30 text-left text-xs">
+                <tr className="border-b border-white/8 text-white/28 text-left text-xs">
                   <th className="px-5 py-3 font-medium">Benutzer</th>
                   <th className="px-4 py-3 font-medium hidden sm:table-cell">Sessions</th>
                   <th className="px-4 py-3 font-medium hidden md:table-cell">Lernzeit</th>
@@ -106,22 +207,31 @@ export default function AdminUsers() {
                 {data?.users.map((u) => (
                   <tr
                     key={u.id}
-                    className={`border-b border-white/[0.05] last:border-0 transition-colors hover:bg-white/[0.02] ${
+                    className={`border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02] transition-colors ${
                       u.deletedAt ? 'opacity-35' : ''
-                    }`}
+                    } ${detailId === u.id ? 'bg-white/[0.03]' : ''}`}
                   >
-                    {/* Name + E-Mail */}
+                    {/* Name + E-Mail — klickbar für Detail */}
                     <td className="px-5 py-3.5">
-                      <p className="font-medium text-white/85">{u.username}</p>
-                      <p className="text-xs text-white/35 mt-0.5">{u.email}</p>
+                      <button
+                        type="button"
+                        onClick={() => setDetailId(detailId === u.id ? null : u.id)}
+                        className="text-left hover:opacity-75 transition-opacity"
+                      >
+                        <p className="font-medium text-white/85 flex items-center gap-1.5">
+                          {u.username}
+                          {detailId === u.id && (
+                            <span className="text-[10px] text-purple-400 font-normal">▲</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-white/35 mt-0.5">{u.email}</p>
+                      </button>
                     </td>
 
-                    {/* Sessions */}
                     <td className="px-4 py-3.5 hidden sm:table-cell text-white/50 tabular-nums">
                       {u.sessionCount}
                     </td>
 
-                    {/* Lernzeit */}
                     <td className="px-4 py-3.5 hidden md:table-cell text-white/50 tabular-nums">
                       {fmtTime(u.totalMinutes)}
                     </td>
@@ -131,7 +241,7 @@ export default function AdminUsers() {
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                         u.role === 'admin'
                           ? 'bg-pink-500/15 text-pink-400'
-                          : 'bg-white/[0.06] text-white/40'
+                          : 'bg-white/[0.06] text-white/38'
                       }`}>
                         {u.role}
                       </span>
@@ -140,21 +250,35 @@ export default function AdminUsers() {
                     {/* Aktionen */}
                     <td className="px-4 py-3.5 text-right">
                       {!u.deletedAt && (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
 
                           {/* Rolle toggeln */}
                           <button
                             type="button"
-                            onClick={() =>
-                              roleMutation.mutate({
-                                id:   u.id,
-                                role: u.role === 'admin' ? 'user' : 'admin',
-                              })
-                            }
+                            onClick={() => roleMutation.mutate({
+                              id:   u.id,
+                              role: u.role === 'admin' ? 'user' : 'admin',
+                            })}
                             disabled={roleMutation.isPending}
-                            className="px-2.5 py-1 rounded-md text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+                            title={u.role === 'admin' ? 'Zu User degradieren' : 'Zu Admin befördern'}
+                            className="px-2.5 py-1 rounded-md text-xs text-white/45 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-40"
                           >
                             {u.role === 'admin' ? '↓ User' : '↑ Admin'}
+                          </button>
+
+                          {/* Sessions widerrufen */}
+                          <button
+                            type="button"
+                            onClick={() => revokeMutation.mutate(u.id)}
+                            disabled={revokeMutation.isPending}
+                            title="Alle aktiven Sitzungen beenden (erzwingt Re-Login)"
+                            className={`px-2.5 py-1 rounded-md text-xs transition-colors disabled:opacity-40 ${
+                              revokeOk === u.id
+                                ? 'text-emerald-400 bg-emerald-500/10'
+                                : 'text-amber-400/55 hover:text-amber-400 hover:bg-amber-500/10'
+                            }`}
+                          >
+                            {revokeOk === u.id ? '✓' : '⏏'}
                           </button>
 
                           {/* Löschen mit Bestätigung */}
@@ -166,23 +290,24 @@ export default function AdminUsers() {
                                 disabled={deleteMutation.isPending}
                                 className="px-2.5 py-1 rounded-md text-xs bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-40"
                               >
-                                Ja, löschen
+                                Ja
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setConfirm(null)}
-                                className="px-2.5 py-1 rounded-md text-xs text-white/40 hover:text-white/60 hover:bg-white/[0.05] transition-colors"
+                                className="px-2.5 py-1 rounded-md text-xs text-white/40 hover:bg-white/[0.05] transition-colors"
                               >
-                                Abbrechen
+                                Nein
                               </button>
                             </div>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setConfirm(u.id)}
-                              className="px-2.5 py-1 rounded-md text-xs text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Benutzer löschen"
+                              className="px-2.5 py-1 rounded-md text-xs text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                             >
-                              Löschen
+                              ✕
                             </button>
                           )}
                         </div>
@@ -190,12 +315,20 @@ export default function AdminUsers() {
                     </td>
                   </tr>
                 ))}
+
+                {data?.users.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-white/25">
+                      Keine Benutzer gefunden.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* ── Pagination ──────────────────────────────────────────── */}
+        {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-white/8 flex items-center justify-between">
             <button
@@ -206,9 +339,7 @@ export default function AdminUsers() {
             >
               ← Zurück
             </button>
-            <span className="text-xs text-white/30">
-              Seite {page + 1} / {totalPages}
-            </span>
+            <span className="text-xs text-white/30">Seite {page + 1} / {totalPages}</span>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
@@ -220,6 +351,76 @@ export default function AdminUsers() {
           </div>
         )}
       </div>
+
+      {/* ── Nutzerprofil-Panel ───────────────────────────────── */}
+      {detailId !== null && (
+        <div className="bg-white/[0.03] border border-white/8 rounded-xl overflow-hidden">
+
+          <div className="px-5 py-3.5 border-b border-white/8 flex items-center justify-between">
+            <p className="text-sm font-semibold text-white/70">Nutzerprofil</p>
+            <button
+              type="button"
+              onClick={() => setDetailId(null)}
+              className="text-white/25 hover:text-white/55 transition-colors text-xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          {detailLoading || !detail ? (
+            <div className="p-5 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 rounded-lg bg-white/[0.04] animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="p-5 space-y-5">
+
+              {/* Basis-Infos */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { label: 'Benutzername',    value: detail.username },
+                  { label: 'E-Mail',          value: detail.email },
+                  { label: 'Registriert',     value: fmtDate(detail.createdAt) },
+                  { label: 'Sessions gesamt', value: detail.totalSessions.toLocaleString() },
+                  { label: 'Lernzeit gesamt', value: fmtTime(detail.totalMinutes) },
+                  { label: 'Letzte Session',  value: detail.lastSession ? fmtDate(detail.lastSession) : '–' },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p className="text-[11px] text-white/28 mb-0.5">{label}</p>
+                    <p className="text-sm text-white/75 font-medium truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Letzte 10 Sessions */}
+              {detail.recentSessions.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/30 mb-2">Letzte 10 Sessions</p>
+                  <div className="grid gap-1.5">
+                    {detail.recentSessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.05]"
+                      >
+                        <span className="text-xs text-white/55">{s.category}</span>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-white/45 tabular-nums">{s.minutes} Min.</span>
+                          <span className="text-white/28">{fmtDate(s.startTime)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {detail.recentSessions.length === 0 && (
+                <p className="text-xs text-white/25 italic">Noch keine Sessions aufgezeichnet.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
