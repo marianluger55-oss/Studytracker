@@ -7,6 +7,7 @@
 import { Response }      from 'express';
 import { z }             from 'zod';
 import * as usersService from '../services/users.service';
+import * as audit        from '../services/audit.service';
 import { AuthRequest }   from '../types';
 import { asyncHandler }  from '../utils/asyncHandler';
 
@@ -30,6 +31,15 @@ const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Passwort erforderlich'),
 });
 
+/* IP und User-Agent aus Request lesen */
+function requestMeta(req: AuthRequest) {
+  return {
+    ip:        (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim()
+                 ?? req.ip ?? '',
+    userAgent: req.headers['user-agent'] ?? '',
+  };
+}
+
 export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
   const authService = await import('../services/auth.service');
   const user = await authService.getMe(req.userId!);
@@ -45,12 +55,18 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
 export const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
   await usersService.changePassword(req.userId!, currentPassword, newPassword);
+
+  audit.log('password_changed', { userId: req.userId!, ...requestMeta(req) });
+
   res.json({ success: true, data: null });
 });
 
 export const exportData = asyncHandler(async (req: AuthRequest, res: Response) => {
   /* DSGVO Art. 20 — Datenportabilität: alle eigenen Daten als JSON-Download */
   const data = await usersService.exportData(req.userId!);
+
+  audit.log('data_exported', { userId: req.userId!, ...requestMeta(req) });
+
   const filename = `studytracker-export-${new Date().toISOString().slice(0, 10)}.json`;
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Type', 'application/json');
@@ -60,6 +76,9 @@ export const exportData = asyncHandler(async (req: AuthRequest, res: Response) =
 export const deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { password } = deleteAccountSchema.parse(req.body);
   await usersService.deleteAccount(req.userId!, password);
+
+  audit.log('account_deleted', { userId: req.userId!, ...requestMeta(req) });
+
   res.clearCookie('refreshToken', { path: '/' });
   res.json({ success: true, data: null });
 });

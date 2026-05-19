@@ -265,3 +265,10 @@ export async function softDeleteUser(targetId: number) {
     [targetId],
   );
 }
+
+/* ── getAuditLogs ─────────────────────────────────────────────── */
+/* Delegiert an audit.service — hält admin.service schlank */
+export async function getAuditLogs(limit = 50, offset = 0, userId?: number) {
+  const { getRecentAuditLogs } = await import('./audit.service');
+  return getRecentAuditLogs(limit, offset, userId);
+}

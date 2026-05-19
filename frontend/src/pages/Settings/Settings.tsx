@@ -100,6 +100,29 @@ export default function Settings() {
     },
   });
 
+  /* ── Account-Löschen-State ──────────────────────────────── */
+  const [deleteStep,      setDeleteStep]      = useState(0); // 0=hidden, 1=form
+  const [deletePw,        setDeletePw]        = useState('');
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleteMsg,       setDeleteMsg]       = useState('');
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => { await apiClient.delete('/users/account', { data: { password: deletePw } }); },
+    onSuccess: () => {
+      useAuthStore.getState().clearAuth();
+      window.location.href = '/';
+    },
+    onError: (err: unknown) => {
+      setDeleteMsg(extractErrorMessage(err, 'Account konnte nicht gelöscht werden.'));
+    },
+  });
+
+  const handleDeleteAccount = () => {
+    if (!deletePw) { setDeleteMsg('Bitte Passwort eingeben.'); return; }
+    if (!deleteConfirmed) { setDeleteMsg('Bitte bestätige, dass du die Konsequenzen verstehst.'); return; }
+    deleteMutation.mutate();
+  };
+
   /* ── Logout-All-Mutation ─────────────────────────────────── */
   const [logoutAllConfirm, setLogoutAllConfirm] = useState(false);
   const logoutAllMutation = useMutation({
@@ -303,6 +326,70 @@ export default function Settings() {
           </svg>
           {exportLoading ? 'Wird exportiert…' : 'Alle Daten exportieren (DSGVO)'}
         </button>
+      </div>
+
+      {/* ── Danger Zone: Account löschen ─────────────────────── */}
+      <div className="card border border-red-500/20">
+        <p className="card-title text-red-400">Danger Zone</p>
+        <p className="text-sm text-[var(--text-2)] mb-4">
+          Löscht deinen Account und alle Daten dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
+        </p>
+        {deleteStep === 0 && (
+          <button
+            type="button"
+            onClick={() => setDeleteStep(1)}
+            className="btn-danger text-sm"
+          >
+            Account löschen
+          </button>
+        )}
+        {deleteStep === 1 && (
+          <div className="space-y-3 max-w-sm">
+            <div>
+              <label className="input-label" htmlFor="delete-pw">Passwort bestätigen</label>
+              <input
+                id="delete-pw"
+                type="password"
+                value={deletePw}
+                onChange={(e) => setDeletePw(e.target.value)}
+                className="input"
+                autoComplete="current-password"
+                placeholder="Dein aktuelles Passwort"
+              />
+            </div>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={deleteConfirmed}
+                onChange={(e) => setDeleteConfirmed(e.target.checked)}
+                className="mt-0.5 accent-red-500"
+              />
+              <span className="text-sm text-[var(--text-2)]">
+                Ich verstehe, dass alle meine Daten unwiderruflich gelöscht werden.
+              </span>
+            </label>
+            {deleteMsg && (
+              <p className="text-sm text-red-500">{deleteMsg}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteMutation.isPending || !deleteConfirmed || !deletePw}
+                className="btn-danger text-sm disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? 'Wird gelöscht…' : 'Unwiderruflich löschen'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDeleteStep(0); setDeletePw(''); setDeleteConfirmed(false); setDeleteMsg(''); }}
+                className="btn-ghost text-sm"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Über ─────────────────────────────────────────────── */}

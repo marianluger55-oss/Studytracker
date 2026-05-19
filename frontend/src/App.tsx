@@ -73,9 +73,10 @@ const Goals      = lazy(() => import('./pages/Goals/Goals'));
 const Settings   = lazy(() => import('./pages/Settings/Settings'));
 
 // Admin-Panel: eigene Website mit eigenem Login (komplett getrennt von der App)
-const AdminLogin     = lazy(() => import('./pages/Admin/AdminLogin'));
-const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
-const AdminUsers     = lazy(() => import('./pages/Admin/AdminUsers'));
+const AdminLogin      = lazy(() => import('./pages/Admin/AdminLogin'));
+const AdminDashboard  = lazy(() => import('./pages/Admin/AdminDashboard'));
+const AdminUsers      = lazy(() => import('./pages/Admin/AdminUsers'));
+const AdminAuditLogs  = lazy(() => import('./pages/Admin/AdminAuditLogs'));
 
 // Legal-Seiten (selten besucht → ideal für Lazy Loading)
 const Impressum   = lazy(() => import('./pages/Legal/Impressum'));
@@ -276,6 +277,7 @@ function AppInner() {
                   <Routes>
                     <Route path="dashboard" element={<AdminDashboard />} />
                     <Route path="users"     element={<AdminUsers />}     />
+                    <Route path="audit"     element={<AdminAuditLogs />} />
                     {/* /admin → /admin/dashboard */}
                     <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
                   </Routes>

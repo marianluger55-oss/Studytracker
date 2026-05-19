@@ -32,6 +32,15 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    to: '/admin/audit',
+    label: 'Logs',
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
+        <path d="M2 4h12M2 7h8M2 10h6M2 13h4" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

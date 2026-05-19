@@ -4,6 +4,7 @@
  *  GET  /api/admin/stats                    → Plattform-Statistiken
  *  GET  /api/admin/growth                   → Wachstums-Daten (Charts)
  *  GET  /api/admin/activity                 → Live-Aktivitätsfeed
+ *  GET  /api/admin/audit                    → Audit-Log Einträge
  *  GET  /api/admin/users                    → Alle Benutzer (paginiert, Suche, Filter)
  *  GET  /api/admin/users/:id                → Nutzerprofil Detail
  *  PATCH  /api/admin/users/:id/role         → Rolle ändern
@@ -17,7 +18,7 @@ import { adminAuth }    from '../middleware/adminAuth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import {
   getUsers, getPlatformStats, getGrowthData, getRecentActivity,
-  getUserDetail, revokeSessions, updateUserRole, deleteUser,
+  getUserDetail, revokeSessions, updateUserRole, deleteUser, getAuditLogs,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.use(adminLimiter, auth, adminAuth);
 router.get('/stats',                       getPlatformStats);
 router.get('/growth',                      getGrowthData);
 router.get('/activity',                    getRecentActivity);
+router.get('/audit',                       getAuditLogs);
 router.get('/users',                       getUsers);
 router.get('/users/:id',                   getUserDetail);
 router.patch('/users/:id/role',            updateUserRole);
