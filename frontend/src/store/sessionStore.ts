@@ -106,8 +106,14 @@ export const useSessionStore = create<SessionStore>()(
       }),
       {
         name: 'study-sessions',
-        // sessions aus Backend laden — localStorage nur als Offline-Fallback
-        partialize: (state) => ({ sessions: state.sessions }),
+        /* activeSession + isRunning persistieren damit der Timer einen
+           Seitenrefresh überlebt. elapsed wird fortgesetzt, die kurze
+           Lücke durch den Reload (< paar Sekunden) ist vernachlässigbar. */
+        partialize: (state) => ({
+          sessions:      state.sessions,
+          activeSession: state.activeSession,
+          isRunning:     state.isRunning,
+        }),
       }
     )
   )

@@ -29,7 +29,6 @@ export default function Timer() {
     pauseSession,
     resumeSession,
     stopSession,
-    tickElapsed,
   } = useSessionStore();
 
   /* Ausgewählte Kategorie-ID */
@@ -47,12 +46,7 @@ export default function Timer() {
   const ringRef   = useRef<SVGCircleElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
 
-  /* Sekundentakt — tickt nur wenn isRunning */
-  useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(() => tickElapsed(), 1000);
-    return () => clearInterval(id);
-  }, [isRunning, tickElapsed]);
+  /* Takt läuft global in TimerTick.tsx — kein lokaler Interval nötig */
 
   /* SVG-Ring: Fortschritt relativ zu 25 Minuten */
   const elapsed       = activeSession?.elapsed ?? 0;

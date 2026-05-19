@@ -46,6 +46,7 @@ import AuthInitializer    from './components/auth/AuthInitializer';
 import ProtectedRoute     from './components/auth/ProtectedRoute';
 import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
 import ErrorBoundary      from './components/ErrorBoundary';
+import TimerTick          from './components/TimerTick';
 
 // Admin-Layout (eigenes Top-Navbar-Layout, ohne Sidebar)
 import AdminLayout from './pages/Admin/AdminLayout';
@@ -243,6 +244,8 @@ function AppInner() {
     <>
       {/* Auth-Initialisierung beim Start — prüft Refresh-Token-Cookie */}
       <AuthInitializer />
+      {/* Timer-Takt: läuft global, überlebt jeden Routenwechsel */}
+      <TimerTick />
 
       <Routes>
         {/* ── Landing Page (öffentlich) ────────────────── */}
