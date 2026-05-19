@@ -13,6 +13,7 @@ export type AuditAction =
   | 'register'
   | 'login'
   | 'login_failed'
+  | 'login_anomaly'
   | 'logout'
   | 'logout_all'
   | 'password_changed'

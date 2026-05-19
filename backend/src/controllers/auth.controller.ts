@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import * as authService      from '../services/auth.service';
 import * as audit            from '../services/audit.service';
+import { recordFailedLogin, resetFailedLogins } from '../utils/loginGuard';
 import { AuthRequest }       from '../types';
 import { asyncHandler }      from '../utils/asyncHandler';
 import { AppError }          from '../middleware/errorHandler';
@@ -64,9 +65,13 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   } catch (err) {
     /* Fehlgeschlagener Login: userId unbekannt, E-Mail im metadata */
     audit.log('login_failed', { ...meta, metadata: { email } });
+    /* Anomalie-Erkennung: mehrere Fehlversuche von gleicher IP */
+    void recordFailedLogin(meta.ip, email);
     throw err;
   }
 
+  /* Erfolgreicher Login: Fehlversuchs-Zähler zurücksetzen */
+  void resetFailedLogins(meta.ip);
   audit.log('login', { userId: result.user.id, ...meta, metadata: { email } });
 
   res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
