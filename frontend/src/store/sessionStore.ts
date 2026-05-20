@@ -1,26 +1,32 @@
 /*
  * store/sessionStore.ts
- * Timer-State (active session) + Sessions-Liste (aus Backend).
  *
- * Wichtig: activeSession wird NICHT in localStorage gespeichert —
- * ein Tab-Schließen während einer Session setzt den Timer zurück.
- * sessions wird nach Backend-Antwort befüllt (kein Demo-Daten).
+ * Elapsed wird aus echten Timestamps berechnet — nicht durch inkrementellen Zähler.
+ * Dadurch ist der Timer korrekt nach Navigation, Browser-Throttling und Page-Refresh.
+ *
+ * Konzept:
+ *   accumulated  — Sekunden die schon gelaufen sind (vor der aktuellen Laufphase)
+ *   runningFrom  — Date.now() beim letzten Start/Resume, null wenn pausiert
+ *   elapsed (live) = accumulated + (Date.now() - runningFrom) / 1000
+ *
+ * _tick — steigt jede Sekunde um 1 damit Komponenten re-rendern und die
+ *          aktuelle elapsed-Zeit aus den Timestamps neu berechnen.
  */
 
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import type { StudySession } from '../types';
 
-/* Aktive-Session-Daten (nur während Timer läuft) */
-interface ActiveSession {
+/* ── Typen ──────────────────────────────────────────────────────── */
+export interface ActiveSession {
   categoryId:    number | null;
   categoryName:  string;
   categoryColor: string;
-  startTime:     string;   // ISO-String des Starts
-  elapsed:       number;   // Vergangene Sekunden
+  startTime:     string;   /* ISO-String des ursprünglichen Starts (für Backend) */
+  runningFrom:   number | null; /* Date.now() beim letzten Start/Resume */
+  accumulated:   number;   /* Sekunden aus abgeschlossenen Laufphasen (vor Pausen) */
 }
 
-/* Rückgabewert von stopSession — wird ans Backend gesendet */
 export interface StoppedSessionData {
   categoryId:    number | null;
   categoryName:  string;
@@ -30,31 +36,39 @@ export interface StoppedSessionData {
   duration:      number;
 }
 
+/* Berechnet die aktuelle Elapsed-Zeit aus den Timestamps */
+export function getElapsed(session: ActiveSession | null, isRunning: boolean): number {
+  if (!session) return 0;
+  const acc = session.accumulated;
+  if (!isRunning || session.runningFrom === null) return acc;
+  return acc + Math.floor((Date.now() - session.runningFrom) / 1000);
+}
+
 interface SessionStore {
   sessions:      StudySession[];
   activeSession: ActiveSession | null;
   isRunning:     boolean;
+  _tick:         number; /* Zähler — steigt jede Sekunde, löst Re-Renders aus */
 
-  /* API-Sync-Aktionen */
   setSessions:   (sessions: StudySession[]) => void;
   addSession:    (session: StudySession) => void;
   removeSession: (id: number) => void;
 
-  /* Timer-Aktionen */
   startSession:  (categoryId: number | null, categoryName: string, categoryColor: string) => void;
   pauseSession:  () => void;
   resumeSession: () => void;
   stopSession:   () => StoppedSessionData | null;
-  tickElapsed:   () => void;
+  tick:          () => void; /* Wird von TimerTick.tsx jede Sekunde aufgerufen */
 }
 
 export const useSessionStore = create<SessionStore>()(
   subscribeWithSelector(
     persist(
       (set, get) => ({
-        sessions:      [],   // Leer — wird aus Backend geladen
+        sessions:      [],
         activeSession: null,
         isRunning:     false,
+        _tick:         0,
 
         /* ── API-Sync ─────────────────────────────────────────── */
         setSessions:   (sessions) => set({ sessions }),
@@ -67,19 +81,44 @@ export const useSessionStore = create<SessionStore>()(
             categoryId,
             categoryName,
             categoryColor,
-            startTime: new Date().toISOString(),
-            elapsed:   0,
+            startTime:   new Date().toISOString(),
+            runningFrom: Date.now(),
+            accumulated: 0,
           },
           isRunning: true,
+          _tick:     0,
         }),
 
-        pauseSession:  () => set({ isRunning: false }),
-        resumeSession: () => set({ isRunning: true }),
-
-        /* Gibt Rohdaten zurück — Timer.tsx sendet diese ans Backend */
-        stopSession: () => {
+        pauseSession: () => {
           const { activeSession } = get();
+          if (!activeSession || !activeSession.runningFrom) return;
+          const extra = Math.floor((Date.now() - activeSession.runningFrom) / 1000);
+          set({
+            activeSession: {
+              ...activeSession,
+              runningFrom:  null,
+              accumulated:  activeSession.accumulated + extra,
+            },
+            isRunning: false,
+          });
+        },
+
+        resumeSession: () => {
+          const { activeSession } = get();
+          if (!activeSession) return;
+          set({
+            activeSession: { ...activeSession, runningFrom: Date.now() },
+            isRunning:     true,
+          });
+        },
+
+        stopSession: () => {
+          const { activeSession, isRunning } = get();
           if (!activeSession) return null;
+
+          const duration = isRunning && activeSession.runningFrom !== null
+            ? activeSession.accumulated + Math.floor((Date.now() - activeSession.runningFrom) / 1000)
+            : activeSession.accumulated;
 
           const data: StoppedSessionData = {
             categoryId:    activeSession.categoryId,
@@ -87,28 +126,18 @@ export const useSessionStore = create<SessionStore>()(
             categoryColor: activeSession.categoryColor,
             startTime:     activeSession.startTime,
             endTime:       new Date().toISOString(),
-            duration:      activeSession.elapsed,
+            duration,
           };
 
-          set({ activeSession: null, isRunning: false });
+          set({ activeSession: null, isRunning: false, _tick: 0 });
           return data;
         },
 
-        tickElapsed: () => set((state) => {
-          if (!state.activeSession || !state.isRunning) return state;
-          return {
-            activeSession: {
-              ...state.activeSession,
-              elapsed: state.activeSession.elapsed + 1,
-            },
-          };
-        }),
+        /* Inkrementiert nur den _tick-Zähler — Elapsed wird aus Timestamps berechnet */
+        tick: () => set((s) => ({ _tick: s._tick + 1 })),
       }),
       {
         name: 'study-sessions',
-        /* activeSession + isRunning persistieren damit der Timer einen
-           Seitenrefresh überlebt. elapsed wird fortgesetzt, die kurze
-           Lücke durch den Reload (< paar Sekunden) ist vernachlässigbar. */
         partialize: (state) => ({
           sessions:      state.sessions,
           activeSession: state.activeSession,

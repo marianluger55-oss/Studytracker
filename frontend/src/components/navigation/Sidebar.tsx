@@ -8,9 +8,9 @@
 
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTheme }        from '../../hooks/useTheme';
-import { useSessionStore } from '../../store/sessionStore';
-import { useAuthStore }    from '../../store/authStore';
-import { formatTimer }     from '../../utils/time';
+import { useSessionStore, getElapsed } from '../../store/sessionStore';
+import { useAuthStore }               from '../../store/authStore';
+import { formatTimer }                from '../../utils/time';
 
 /* ── Props ───────────────────────────────────────────────────── */
 interface SidebarProps {
@@ -113,8 +113,12 @@ const legalLinks = [
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark, toggle } = useTheme();
   const navigate = useNavigate();
-  const { activeSession, isRunning } = useSessionStore();
+  const { activeSession, isRunning, _tick } = useSessionStore();
   const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
+
+  /* _tick steigt jede Sekunde → Sidebar re-rendert und zeigt aktuelle Zeit */
+  void _tick;
+  const elapsed = getElapsed(activeSession, isRunning);
 
   return (
     /* Sidebar-Wrapper: fixed links, volle Höhe, z-50 über Backdrop */
@@ -180,7 +184,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               }`} />
               {/* Zeitanzeige in Akzentfarbe */}
               <span className="text-[11px] font-mono font-semibold tabular-nums text-[var(--accent)]">
-                {formatTimer(activeSession.elapsed)}
+                {formatTimer(elapsed)}
               </span>
               {/* Pausiert-Label wenn nicht läuft */}
               {!isRunning && (

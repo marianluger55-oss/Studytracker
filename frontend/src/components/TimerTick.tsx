@@ -1,26 +1,25 @@
 /*
  * components/TimerTick.tsx
  *
- * Hält den Timer-Takt global am Leben — unabhängig von der aktuellen Seite.
- * Rendert nichts. Wird einmalig in AppInner gemountet und nie wieder unmounted.
- *
- * Warum hier statt in Timer.tsx?
- * Timer.tsx wird beim Seitenwechsel unmounted → clearInterval → Timer stoppt.
- * Diese Komponente lebt im Root und überlebt jeden Routenwechsel.
+ * Läuft global im Root — nie unmounted, überlebt jeden Routenwechsel.
+ * Ruft tick() jede Sekunde auf → erhöht _tick im Store →
+ * alle Komponenten die _tick lesen re-rendern und berechnen
+ * elapsed neu aus den echten Timestamps.
  */
 
 import { useEffect } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 
 export default function TimerTick() {
-  const isRunning   = useSessionStore((s) => s.isRunning);
-  const tickElapsed = useSessionStore((s) => s.tickElapsed);
+  const isRunning = useSessionStore((s) => s.isRunning);
 
   useEffect(() => {
     if (!isRunning) return;
-    const id = setInterval(tickElapsed, 1000);
+    const id = setInterval(() => {
+      useSessionStore.getState().tick();
+    }, 1000);
     return () => clearInterval(id);
-  }, [isRunning, tickElapsed]);
+  }, [isRunning]);
 
   return null;
 }
