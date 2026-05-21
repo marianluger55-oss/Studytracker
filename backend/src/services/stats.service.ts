@@ -33,7 +33,7 @@ export async function getWeekStats(userId: number) {
      FROM sessions
      WHERE user_id = $1 AND start_time >= NOW() - INTERVAL '7 days'  -- Nur letzte 7 Tage
      GROUP BY date  -- Pro Tag aggregieren
-     ORDER BY date ASC`,  -- Ältester Tag zuerst (für Zeitachse)
+     ORDER BY date ASC`,  /* Ältester Tag zuerst (für Zeitachse) */
     [userId]
   );
   const data = result.rows.map((row) => ({
@@ -87,7 +87,7 @@ export async function getCategoryStats(userId: number) {
      LEFT JOIN sessions s ON s.category_id = c.id AND s.user_id = $1  -- LEFT JOIN: Kategorien ohne Sessions bleiben sichtbar
      WHERE c.user_id = $1 AND c.deleted_at IS NULL  -- Nur aktive Kategorien
      GROUP BY c.id, c.name, c.color
-     ORDER BY total_seconds DESC`,  -- Meist gelernte Kategorie oben
+     ORDER BY total_seconds DESC`,  /* Meist gelernte Kategorie oben */
     [userId]
   );
   const data = result.rows.map((row) => ({
@@ -138,7 +138,7 @@ export async function getSummary(userId: number) {
        FROM sessions
        WHERE user_id = $1
          AND date_trunc('day', start_time AT TIME ZONE 'UTC')  -- Tag abschneiden
-             = date_trunc('day', NOW() AT TIME ZONE 'UTC')`,   -- Mit heutigem Tag vergleichen
+             = date_trunc('day', NOW() AT TIME ZONE 'UTC')`,   /* Mit heutigem Tag vergleichen */
       [userId]
     ),
 
@@ -147,7 +147,7 @@ export async function getSummary(userId: number) {
       `SELECT COALESCE(SUM(duration), 0)::integer AS total_seconds
        FROM sessions
        WHERE user_id = $1
-         AND start_time >= date_trunc('week', NOW() AT TIME ZONE 'UTC')`,  -- Wochenanfang
+         AND start_time >= date_trunc('week', NOW() AT TIME ZONE 'UTC')`,  /* Wochenanfang */
       [userId]
     ),
 

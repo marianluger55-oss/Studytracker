@@ -55,7 +55,7 @@ export async function getAllUsers(
        ${whereSQL}
        GROUP BY u.id
        ORDER BY u.created_at DESC  -- Neueste Nutzer oben
-       LIMIT $${p.length + 1} OFFSET $${p.length + 2}`,  -- Pagination-Parameter am Ende
+       LIMIT $${p.length + 1} OFFSET $${p.length + 2}`,  /* Pagination-Parameter am Ende */
       [...p, limit, offset],
     ),
     /* COUNT für Pagination: wieviele Nutzer total (ohne Limit) */

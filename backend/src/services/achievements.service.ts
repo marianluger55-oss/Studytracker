@@ -166,7 +166,7 @@ export async function getWithStatus(userId: number): Promise<AchievementWithStat
      FROM achievements a
      LEFT JOIN user_achievements ua
        ON ua.achievement_id = a.id AND ua.user_id = $1  -- LEFT JOIN: alle Achievements erscheinen
-     ORDER BY ua.unlocked_at NULLS LAST, a.id`,  -- Freigeschaltete oben, gesperrte unten
+     ORDER BY ua.unlocked_at NULLS LAST, a.id`,  /* Freigeschaltete oben, gesperrte unten */
     [userId]
   );
 
