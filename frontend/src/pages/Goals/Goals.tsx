@@ -1,13 +1,17 @@
 /*
  * pages/Goals/Goals.tsx
+ * ─────────────────────────────────────────────────────────────
+ * Lernziele-Seite: Ziele setzen, Fortschritt verfolgen, Streak + Meilensteine.
  *
  * Server-State Architektur:
- *  - useGoals()    → Ziele vom Backend laden + mutations
+ *  - useGoals()    → Ziele vom Backend laden + create/delete Mutations
  *  - useSessions() → Sessions für Fortschritts-Berechnung + 7-Tage-Visualisierung
  *  - useStats()    → currentStreak + longestStreak vom Backend (korrekte UTC-Grenze)
  *
- * Streak darf NICHT mehr lokal berechnet werden — Backend ist Source of Truth.
- * Achievements bleiben lokal bis das vollständige System verdrahtet ist.
+ * Wichtig:
+ *  - Streak darf NICHT lokal berechnet werden — Backend (SQL) ist Source of Truth
+ *  - Achievements sind clientseitig (lokal berechnet, kein extra Backend-Call)
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { useState } from 'react';
@@ -19,48 +23,52 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import type { Goal } from '../../types';
 
 /* ── Achievement-Definitionen ─────────────────────────────────── */
+/* check-Funktion: (sessionCount, totalMinutes, streak) → boolean
+   Parameter mit _ Prefix werden nicht verwendet, müssen aber deklariert sein (TypeScript). */
 const ACHIEVEMENTS = [
-  { id: 'a1', label: 'Erste Session', desc: 'Eine Session abgeschlossen',   check: (s: number)                      => s >= 1     },
-  { id: 'a2', label: '1 Stunde',      desc: '60 Minuten gesamt',            check: (_s: number, t: number)          => t >= 60    },
-  { id: 'a3', label: '10 Stunden',    desc: '600 Minuten gesamt',           check: (_s: number, t: number)          => t >= 600   },
-  { id: 'a4', label: '3 Tage',        desc: '3 Tage am Stück',              check: (_s: number, _t: number, k: number) => k >= 3  },
-  { id: 'a5', label: '7 Tage',        desc: '7 Tage am Stück',              check: (_s: number, _t: number, k: number) => k >= 7  },
-  { id: 'a6', label: '10 Sessions',   desc: '10 Sessions abgeschlossen',    check: (s: number)                      => s >= 10   },
+  { id: 'a1', label: 'Erste Session', desc: 'Eine Session abgeschlossen',   check: (s: number)                         => s >= 1     }, /* s = sessionCount */
+  { id: 'a2', label: '1 Stunde',      desc: '60 Minuten gesamt',            check: (_s: number, t: number)             => t >= 60    }, /* t = totalMinutes */
+  { id: 'a3', label: '10 Stunden',    desc: '600 Minuten gesamt',           check: (_s: number, t: number)             => t >= 600   },
+  { id: 'a4', label: '3 Tage',        desc: '3 Tage am Stück',              check: (_s: number, _t: number, k: number) => k >= 3     }, /* k = streak */
+  { id: 'a5', label: '7 Tage',        desc: '7 Tage am Stück',              check: (_s: number, _t: number, k: number) => k >= 7     },
+  { id: 'a6', label: '10 Sessions',   desc: '10 Sessions abgeschlossen',    check: (s: number)                         => s >= 10    },
 ] as const;
 
 export default function Goals() {
-  const { goals, upsertGoal, deleteGoal } = useGoals();
-  const { sessions }                      = useSessions();
-  const { data: stats }                   = useStats();
+  const { goals, upsertGoal, deleteGoal } = useGoals();    /* Ziele + CRUD-Operationen */
+  const { sessions }                      = useSessions();  /* Sessions für Fortschritts-Berechnung */
+  const { data: stats }                   = useStats();     /* Aggregierte Kennzahlen inkl. Streak */
 
-  const [targetHours, setTargetHours] = useState(10);
-  const [period,      setPeriod]      = useState<Goal['period']>('weekly');
-  const [showForm,    setShowForm]    = useState(false);
-  const [saveError,   setSaveError]   = useState<string | null>(null);
+  const [targetHours, setTargetHours] = useState(10);                /* Zielstunden im Formular */
+  const [period,      setPeriod]      = useState<Goal['period']>('weekly'); /* Zeitraum: daily | weekly | monthly */
+  const [showForm,    setShowForm]    = useState(false);              /* Formular ein-/ausblenden */
+  const [saveError,   setSaveError]   = useState<string | null>(null); /* Fehlermeldung beim Speichern */
 
   /* ── Berechnungen ──────────────────────────────────────────── */
-  const weeklyMins  = getWeeklyMinutes(sessions);
-  const weeklyTotal = weeklyMins.reduce((a, b) => a + b, 0);
-  const todayMins   = getTodayMinutes(sessions);
-  const totalMins   = sessions.reduce((a, s) => a + Math.floor(s.duration / 60), 0);
+  const weeklyMins  = getWeeklyMinutes(sessions);               /* Minuten pro Wochentag [Mo-So] */
+  const weeklyTotal = weeklyMins.reduce((a, b) => a + b, 0);    /* Wochensumme aus Array */
+  const todayMins   = getTodayMinutes(sessions);                 /* Heutige Lernminuten */
+  const totalMins   = sessions.reduce((a, s) => a + Math.floor(s.duration / 60), 0); /* Gesamtminuten */
 
-  /* Streak vom Backend — mit lokalem Fallback während Laden */
+  /* Streak vom Backend — ?? 0: Fallback während Laden oder wenn stats null */
   const streak = stats?.currentStreak ?? 0;
 
+  /* Aktueller Fortschritt je nach Ziel-Periode: stats hat Vorrang vor lokaler Berechnung */
   const getCurrent = (g: Goal) =>
-    g.period === 'weekly'  ? (stats?.weekMinutes  ?? weeklyTotal) :
-    g.period === 'daily'   ? (stats?.todayMinutes ?? todayMins)   :
-    totalMins;
+    g.period === 'weekly'  ? (stats?.weekMinutes  ?? weeklyTotal) : /* Wochenziel: Wochenminuten */
+    g.period === 'daily'   ? (stats?.todayMinutes ?? todayMins)   : /* Tagesziel: heutige Minuten */
+    totalMins;                                                       /* Monatsziel: alle Minuten (vereinfacht) */
 
+  /* Prozentwert für ProgressBar — Math.min(100, ...) verhindert Überschreiten */
   const getProgress = (g: Goal) =>
-    Math.min(100, (getCurrent(g) / (g.targetHours * 60)) * 100);
+    Math.min(100, (getCurrent(g) / (g.targetHours * 60)) * 100); /* targetHours * 60 = Zielminuten */
 
   /* ── Speichern ─────────────────────────────────────────────── */
   const handleSave = async () => {
-    setSaveError(null);
+    setSaveError(null); /* Alte Fehlermeldung vor neuem Versuch löschen */
     try {
-      await upsertGoal({ period, targetHours });
-      setShowForm(false);
+      await upsertGoal({ period, targetHours }); /* Upsert: erstellt oder überschreibt Ziel für diesen Zeitraum */
+      setShowForm(false); /* Formular nach Erfolg schließen */
     } catch {
       setSaveError('Ziel konnte nicht gespeichert werden. Bitte prüfe deine Verbindung.');
     }

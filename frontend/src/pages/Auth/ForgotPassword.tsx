@@ -1,3 +1,20 @@
+/*
+ * pages/Auth/ForgotPassword.tsx
+ * ─────────────────────────────────────────────────────────────
+ * "Passwort vergessen"-Seite.
+ *
+ * Flow:
+ *  1. Nutzer gibt E-Mail ein
+ *  2. POST /auth/forgot-password → Backend sendet Reset-Link per E-Mail
+ *  3. submitted=true → Erfolgsansicht anzeigen (unabhängig ob E-Mail existiert)
+ *
+ * Sicherheit:
+ *  - Generische Erfolgs- und Fehlermeldung — verhindert User-Enumeration
+ *    (Angreifer kann nicht herausfinden welche E-Mails existieren)
+ *  - Reset-Link ist auf dem Backend auf 1 Stunde limitiert
+ * ─────────────────────────────────────────────────────────────
+ */
+
 import { useState }           from 'react';
 import { Link }               from 'react-router-dom';
 import { useForm }            from 'react-hook-form';
@@ -5,27 +22,31 @@ import { zodResolver }        from '@hookform/resolvers/zod';
 import { z }                  from 'zod';
 import apiClient              from '../../services/apiClient';
 
+/* Validierungsschema: nur E-Mail-Format prüfen */
 const schema = z.object({
   email: z.string().min(1, 'E-Mail ist erforderlich').email('Ungültige E-Mail-Adresse'),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.infer<typeof schema>; /* TypeScript-Typ aus dem Zod-Schema ableiten */
 
 export default function ForgotPassword() {
-  const [submitted, setSubmitted] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [submitted, setSubmitted]     = useState(false);          /* true nach erfolgreichem Request */
+  const [serverError, setServerError] = useState<string | null>(null); /* Netzwerk/Server-Fehler */
 
+  /* react-hook-form: Formularverwaltung mit Zod-Validierung */
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   async function onSubmit(data: FormData) {
-    setServerError(null);
+    setServerError(null); /* Alte Fehlermeldung vor neuem Versuch löschen */
     try {
+      /* POST /auth/forgot-password → Backend sucht User und sendet E-Mail (wenn gefunden) */
       await apiClient.post('/auth/forgot-password', { email: data.email });
-      setSubmitted(true);
+      setSubmitted(true); /* Erfolgsansicht — immer anzeigen (auch wenn E-Mail nicht existiert) */
     } catch {
-      // Generischer Fehler — spezifische Fehler verraten User-Enumeration
+      /* Generischer Fehler — spezifische Fehler verraten User-Enumeration
+         (Angreifer könnte sonst testen ob eine E-Mail registriert ist) */
       setServerError('Ein Fehler ist aufgetreten. Bitte versuche es erneut.');
     }
   }

@@ -1,7 +1,16 @@
 /*
  * pages/Admin/AdminUsers.tsx
- * Benutzerverwaltung: Suche, Rollenfilter, Rollen-Toggle,
- * Sessions widerrufen, Löschen, Nutzerdetail-Panel.
+ * ─────────────────────────────────────────────────────────────
+ * Admin-Seite: Benutzerverwaltung.
+ *
+ * Features:
+ *  - Benutzerliste mit Suche (300ms Debounce) und Rollenfilter
+ *  - Pagination (20 Nutzer pro Seite)
+ *  - Rollen-Toggle (user ↔ admin) per PATCH /admin/users/:id/role
+ *  - Sessions widerrufen per POST /admin/users/:id/revoke-sessions
+ *  - Nutzer löschen (Soft-Delete) mit Bestätigungsdialog
+ *  - Nutzerprofil-Panel mit letzten 10 Sessions (bei Klick auf Name)
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { useState, useEffect }                    from 'react';
@@ -9,17 +18,19 @@ import { useQuery, useMutation, useQueryClient }  from '@tanstack/react-query';
 import apiClient                                  from '../../services/apiClient';
 
 /* ── Typen ────────────────────────────────────────────────────── */
+/* AdminUser: Kurzprofil für die Tabellenliste */
 interface AdminUser {
   id:           number;
   email:        string;
   username:     string;
   role:         'user' | 'admin';
   createdAt:    string;
-  deletedAt:    string | null;
-  sessionCount: number;
-  totalMinutes: number;
+  deletedAt:    string | null; /* null = aktiv, ISO-String = soft-deleted */
+  sessionCount: number;        /* Anzahl aller Lernsessions */
+  totalMinutes: number;        /* Gesamte Lernzeit in Minuten */
 }
 
+/* UserDetail: Detailprofil für das ausklappbare Panel */
 interface UserDetail {
   id:             number;
   email:          string;
@@ -29,93 +40,103 @@ interface UserDetail {
   deletedAt:      string | null;
   totalSessions:  number;
   totalMinutes:   number;
-  lastSession:    string | null;
+  lastSession:    string | null; /* ISO-String der letzten Session oder null */
   recentSessions: { id: number; startTime: string; minutes: number; category: string }[];
 }
 
 /* ── Hilfsfunktionen ──────────────────────────────────────────── */
+/* Minuten → lesbare Anzeige: 45m oder 1h 30m */
 function fmtTime(minutes: number) {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
+/* ISO-Datum → deutsches Format: "21.05.2026" */
 function fmtDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   });
 }
 
+/* Anzahl Nutzer pro Seite — Pagination */
 const PAGE_SIZE = 20;
 
 export default function AdminUsers() {
   const qc                              = useQueryClient();
-  const [page,        setPage]          = useState(0);
-  const [searchInput, setSearchInput]   = useState('');
-  const [search,      setSearch]        = useState('');
-  const [roleFilter,  setRoleFilter]    = useState('');
-  const [confirm,     setConfirm]       = useState<number | null>(null);
-  const [detailId,    setDetailId]      = useState<number | null>(null);
-  const [revokeOk,    setRevokeOk]      = useState<number | null>(null);
+  const [page,        setPage]          = useState(0);          /* Aktuelle Seite (0-basiert) */
+  const [searchInput, setSearchInput]   = useState('');         /* Suchfeld-Wert (live, unkontrolliert) */
+  const [search,      setSearch]        = useState('');         /* Debounced Suchwert — wird an Backend gesendet */
+  const [roleFilter,  setRoleFilter]    = useState('');         /* 'user' | 'admin' | '' für Alle */
+  const [confirm,     setConfirm]       = useState<number | null>(null); /* Id des Nutzers dessen Löschung bestätigt werden muss */
+  const [detailId,    setDetailId]      = useState<number | null>(null); /* Id des aufgeklappten Nutzer-Panels */
+  const [revokeOk,    setRevokeOk]      = useState<number | null>(null); /* Id des Nutzers nach erfolgreichem Widerrufen */
 
-  /* Suche: 300ms debounce, Seite zurücksetzen */
+  /* Suche: 300ms debounce — verhindert Backend-Request bei jedem Tastendruck */
   useEffect(() => {
-    const t = setTimeout(() => { setSearch(searchInput); setPage(0); }, 300);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => { setSearch(searchInput); setPage(0); }, 300); /* Timer starten */
+    return () => clearTimeout(t); /* Timer abbrechen wenn searchInput sich vor Ablauf ändert */
   }, [searchInput]);
 
-  /* Rollenfilter → Seite zurücksetzen */
+  /* Rollenfilter → Seite zurücksetzen damit keine leere Seite erscheint */
   useEffect(() => setPage(0), [roleFilter]);
 
   /* ── Benutzerliste ────────────────────────────────────────── */
+  /* Query-Key enthält page, search und roleFilter → TanStack Query cached jede Kombination separat */
   const { data, isLoading } = useQuery<{ users: AdminUser[]; total: number }>({
     queryKey: ['admin', 'users', page, search, roleFilter],
     queryFn: async () => {
+      /* URLSearchParams baut die Query-String automatisch: ?limit=20&offset=0&search=... */
       const p = new URLSearchParams({
         limit:  String(PAGE_SIZE),
-        offset: String(page * PAGE_SIZE),
+        offset: String(page * PAGE_SIZE), /* Offset = Seite × Seitengröße */
       });
-      if (search)     p.set('search', search);
-      if (roleFilter) p.set('role',   roleFilter);
+      if (search)     p.set('search', search);       /* Nur anhängen wenn nicht leer */
+      if (roleFilter) p.set('role',   roleFilter);   /* Nur anhängen wenn gefiltert */
       const { data } = await apiClient.get<{ users: AdminUser[]; total: number }>(`/admin/users?${p}`);
       return data;
     },
   });
 
   /* ── Nutzerprofil ─────────────────────────────────────────── */
+  /* enabled: false → Query wird nicht ausgeführt wenn kein Nutzer ausgewählt */
   const { data: detail, isLoading: detailLoading } = useQuery<UserDetail>({
     queryKey: ['admin', 'user', detailId],
     queryFn:  async () => {
       const { data } = await apiClient.get<UserDetail>(`/admin/users/${detailId}`);
       return data;
     },
-    enabled: detailId !== null,
+    enabled: detailId !== null, /* Nur fetchen wenn ein Nutzer-Panel offen ist */
   });
 
   /* ── Rolle ändern ─────────────────────────────────────────── */
+  /* PATCH /admin/users/:id/role → toggled user ↔ admin */
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: 'user' | 'admin' }) =>
       apiClient.patch(`/admin/users/${id}/role`, { role }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }), /* Liste neu laden */
   });
 
   /* ── Sessions widerrufen ──────────────────────────────────── */
+  /* POST /admin/users/:id/revoke-sessions → löscht Refresh-Tokens → erzwingt Re-Login */
   const revokeMutation = useMutation({
     mutationFn: (id: number) => apiClient.post(`/admin/users/${id}/revoke-sessions`),
     onSuccess: (_, id) => {
-      setRevokeOk(id);
-      setTimeout(() => setRevokeOk(null), 2500);
+      setRevokeOk(id);                               /* Grünes Häkchen beim Button anzeigen */
+      setTimeout(() => setRevokeOk(null), 2500);     /* Häkchen nach 2.5s wieder verstecken */
     },
   });
 
   /* ── Löschen ──────────────────────────────────────────────── */
+  /* DELETE /admin/users/:id → Soft-Delete (deletedAt Timestamp gesetzt, Daten bleiben) */
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.delete(`/admin/users/${id}`),
     onSuccess: () => {
-      setConfirm(null);
-      if (detailId === confirm) setDetailId(null);
-      qc.invalidateQueries({ queryKey: ['admin'] });
+      setConfirm(null);                               /* Bestätigungsdialog schließen */
+      if (detailId === confirm) setDetailId(null);    /* Detail-Panel schließen wenn dieser Nutzer offen war */
+      qc.invalidateQueries({ queryKey: ['admin'] });  /* Alle Admin-Queries invalidieren (Liste + Details) */
     },
   });
 
+  /* Gesamtseitenanzahl für Pagination — Math.ceil: letzte Seite auch bei unvollständiger Seite zeigen */
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   return (

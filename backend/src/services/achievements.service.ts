@@ -1,9 +1,18 @@
 /*
  * services/achievements.service.ts
+ * ─────────────────────────────────────────────────────────────
+ * Errungenschaften (Achievements) — automatisches Entsperren und Abfragen.
  *
- * Prüft und entsperrt Errungenschaften für einen Nutzer automatisch.
- * Wird bei GET /api/achievements aufgerufen: Neue Errungenschaften
- * werden in user_achievements eingetragen, dann alles zurückgegeben.
+ * Strategie: Lazy-Evaluation
+ *  - Errungenschaften werden NICHT bei jeder Session geprüft (zu teuer)
+ *  - Stattdessen: bei GET /api/achievements werden alle Kriterien geprüft
+ *    und neu verdiente Errungenschaften sofort eingetragen
+ *  - ON CONFLICT DO NOTHING: idempotent — mehrfaches Prüfen ist harmlos
+ *
+ * Errungenschaften (achievements-Tabelle sind Seed-Daten):
+ *  first_session, streak_7, streak_30, total_10h, total_100h,
+ *  early_bird, night_owl, five_categories, pomodoro_10, goal_reached
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { pool } from '../db/pool';
@@ -11,20 +20,22 @@ import { pool } from '../db/pool';
 /* ── Typen ─────────────────────────────────────────────────────── */
 export interface AchievementWithStatus {
   id:          number;
-  key:         string;
-  name:        string;
-  description: string;
-  icon:        string;
-  xpReward:    number;
-  unlockedAt:  string | null; // ISO-String oder null wenn noch gesperrt
+  key:         string;   /* Maschinenlesbarer Identifier z.B. "streak_7" */
+  name:        string;   /* Anzeigename z.B. "7-Tage-Streak" */
+  description: string;   /* Beschreibung der Anforderung */
+  icon:        string;   /* Emoji oder Icon-Code */
+  xpReward:    number;   /* Erfahrungspunkte für das Entsperren */
+  unlockedAt:  string | null; /* ISO-String wenn freigeschaltet, null wenn gesperrt */
 }
 
-/* ── Kriterien-Prüfung und automatisches Entsperren ────────────── */
+/* ── checkAndUnlock ─────────────────────────────────────────────
+   Prüft alle Achievement-Kriterien und schreibt neu verdiente in die DB.
+   Promise.all: alle 6 Queries parallel → schneller als sequentiell. */
 async function checkAndUnlock(userId: number): Promise<void> {
-  // Alle Nutzer-Statistiken in einem Batch laden
+  /* Alle Nutzer-Statistiken in einem Batch parallel laden */
   const [statsRow, earlyRow, nightRow, catRow, pomRow, goalRow] = await Promise.all([
 
-    // Gesamt-Sessions, Gesamt-Minuten, aktueller Streak
+    /* Gesamt-Sessions, Gesamt-Minuten, aktueller Streak (gleiche SQL-Logik wie stats.service) */
     pool.query<{ session_count: number; total_minutes: number; current_streak: number }>(
       `WITH daily AS (
          SELECT DISTINCT date_trunc('day', start_time AT TIME ZONE 'UTC')::date AS study_date
@@ -49,46 +60,46 @@ async function checkAndUnlock(userId: number): Promise<void> {
       [userId]
     ),
 
-    // Frühaufsteher: mindestens eine Session vor 7 Uhr
+    /* Frühaufsteher: mindestens eine Session vor 7 Uhr (UTC) */
     pool.query<{ count: number }>(
       `SELECT COUNT(*)::integer AS count FROM sessions
        WHERE user_id = $1
-         AND EXTRACT(HOUR FROM start_time AT TIME ZONE 'UTC') < 7`,
+         AND EXTRACT(HOUR FROM start_time AT TIME ZONE 'UTC') < 7`, /* Stunde 0-6 = vor 7:00 */
       [userId]
     ),
 
-    // Nachteule: mindestens eine Session nach 22 Uhr
+    /* Nachteule: mindestens eine Session nach 22 Uhr (UTC) */
     pool.query<{ count: number }>(
       `SELECT COUNT(*)::integer AS count FROM sessions
        WHERE user_id = $1
-         AND EXTRACT(HOUR FROM start_time AT TIME ZONE 'UTC') >= 22`,
+         AND EXTRACT(HOUR FROM start_time AT TIME ZONE 'UTC') >= 22`, /* Stunde 22-23 = nach 22:00 */
       [userId]
     ),
 
-    // Allrounder: mindestens 5 verschiedene Kategorien genutzt
+    /* Allrounder: mindestens 5 verschiedene Kategorien genutzt */
     pool.query<{ count: number }>(
       `SELECT COUNT(DISTINCT category_id)::integer AS count FROM sessions
-       WHERE user_id = $1 AND category_id IS NOT NULL`,
+       WHERE user_id = $1 AND category_id IS NOT NULL`, /* IS NOT NULL: Sessions ohne Kategorie ignorieren */
       [userId]
     ),
 
-    // Pomodoro-Fan: mindestens 10 Sessions
+    /* Pomodoro-Fan: mindestens 10 Sessions insgesamt */
     pool.query<{ count: number }>(
       `SELECT COUNT(*)::integer AS count FROM sessions WHERE user_id = $1`,
       [userId]
     ),
 
-    // Wochenziel erreicht: aktuelle Woche >= wöchentliches Ziel
+    /* Wochenziel erreicht: aktuelle Woche Lernzeit >= wöchentliches Ziel in Sekunden */
     pool.query<{ reached: boolean }>(
       `SELECT EXISTS (
          SELECT 1 FROM goals g
          WHERE g.user_id = $1 AND g.period = 'weekly'
          AND (
-           SELECT COALESCE(SUM(s.duration), 0)
+           SELECT COALESCE(SUM(s.duration), 0)  -- Lernzeit dieser Woche in Sekunden
            FROM sessions s
            WHERE s.user_id = $1
-             AND s.start_time >= date_trunc('week', NOW())
-         ) >= g.target_hours * 3600
+             AND s.start_time >= date_trunc('week', NOW())  -- Seit Wochenanfang (Montag)
+         ) >= g.target_hours * 3600  -- Zielstunden × 3600 = Zielsekunden
        ) AS reached`,
       [userId]
     ),
@@ -101,37 +112,39 @@ async function checkAndUnlock(userId: number): Promise<void> {
   const pomCount   = pomRow.rows[0].count;
   const goalReached = goalRow.rows[0]?.reached ?? false;
 
+  /* Achievement-Keys sammeln die entsperrt werden sollen */
   const toUnlock: string[] = [];
 
-  if (stats.session_count >= 1)    toUnlock.push('first_session');
-  if (stats.current_streak >= 7)   toUnlock.push('streak_7');
-  if (stats.current_streak >= 30)  toUnlock.push('streak_30');
-  if (stats.total_minutes >= 600)  toUnlock.push('total_10h');
-  if (stats.total_minutes >= 6000) toUnlock.push('total_100h');
-  if (earlyCount >= 1)             toUnlock.push('early_bird');
-  if (nightCount >= 1)             toUnlock.push('night_owl');
-  if (catCount >= 5)               toUnlock.push('five_categories');
-  if (pomCount >= 10)              toUnlock.push('pomodoro_10');
-  if (goalReached)                 toUnlock.push('goal_reached');
+  if (stats.session_count >= 1)    toUnlock.push('first_session'); /* Erste Session */
+  if (stats.current_streak >= 7)   toUnlock.push('streak_7');      /* 7-Tage-Streak */
+  if (stats.current_streak >= 30)  toUnlock.push('streak_30');     /* 30-Tage-Streak */
+  if (stats.total_minutes >= 600)  toUnlock.push('total_10h');     /* 10 Stunden gesamt */
+  if (stats.total_minutes >= 6000) toUnlock.push('total_100h');    /* 100 Stunden gesamt */
+  if (earlyCount >= 1)             toUnlock.push('early_bird');    /* Frühaufsteher */
+  if (nightCount >= 1)             toUnlock.push('night_owl');     /* Nachteule */
+  if (catCount >= 5)               toUnlock.push('five_categories'); /* 5 Kategorien */
+  if (pomCount >= 10)              toUnlock.push('pomodoro_10');   /* 10 Sessions */
+  if (goalReached)                 toUnlock.push('goal_reached');  /* Wochenziel erreicht */
 
-  if (toUnlock.length === 0) return;
+  if (toUnlock.length === 0) return; /* Keine neuen Errungenschaften → früh raus */
 
-  // Masseneinfügung mit ON CONFLICT DO NOTHING — idempotent
+  /* Masseneinfügung: alle neuen Errungenschaften auf einmal eintragen
+     ON CONFLICT DO NOTHING: bereits entsperrte werden still ignoriert (idempotent) */
   await pool.query(
     `INSERT INTO user_achievements (user_id, achievement_id)
      SELECT $1, a.id
      FROM achievements a
-     WHERE a.key = ANY($2::text[])
+     WHERE a.key = ANY($2::text[])  -- ANY: sucht alle keys im Array
      ON CONFLICT (user_id, achievement_id) DO NOTHING`,
     [userId, toUnlock]
   );
 }
 
 /* ── getWithStatus ─────────────────────────────────────────────── */
-// Gibt alle Errungenschaften zurück, mit Entsperrzeit für den Nutzer.
-// Prüft und entsperrt neu verdiente Errungenschaften vor der Abfrage.
+/* Gibt alle Errungenschaften zurück (freigeschaltet + gesperrt), mit Entsperrzeit.
+   Ruft zuerst checkAndUnlock() auf — so werden neue Errungenschaften direkt angezeigt. */
 export async function getWithStatus(userId: number): Promise<AchievementWithStatus[]> {
-  await checkAndUnlock(userId);
+  await checkAndUnlock(userId); /* Neu verdiente zuerst eintragen */
 
   const result = await pool.query<{
     id:          number;
@@ -140,7 +153,7 @@ export async function getWithStatus(userId: number): Promise<AchievementWithStat
     description: string;
     icon:        string;
     xp_reward:   number;
-    unlocked_at: Date | null;
+    unlocked_at: Date | null; /* null = noch gesperrt */
   }>(
     `SELECT
        a.id,
@@ -149,11 +162,11 @@ export async function getWithStatus(userId: number): Promise<AchievementWithStat
        a.description,
        a.icon,
        a.xp_reward,
-       ua.unlocked_at
+       ua.unlocked_at        -- null wenn nicht in user_achievements
      FROM achievements a
      LEFT JOIN user_achievements ua
-       ON ua.achievement_id = a.id AND ua.user_id = $1
-     ORDER BY ua.unlocked_at NULLS LAST, a.id`,
+       ON ua.achievement_id = a.id AND ua.user_id = $1  -- LEFT JOIN: alle Achievements erscheinen
+     ORDER BY ua.unlocked_at NULLS LAST, a.id`,  -- Freigeschaltete oben, gesperrte unten
     [userId]
   );
 
@@ -164,6 +177,7 @@ export async function getWithStatus(userId: number): Promise<AchievementWithStat
     description: row.description,
     icon:        row.icon,
     xpReward:    row.xp_reward,
+    /* Date → ISO-String (React-konsistent), null wenn gesperrt */
     unlockedAt:  row.unlocked_at ? row.unlocked_at.toISOString() : null,
   }));
 }

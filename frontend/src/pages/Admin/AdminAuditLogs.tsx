@@ -1,8 +1,19 @@
 /*
  * pages/Admin/AdminAuditLogs.tsx
+ * ─────────────────────────────────────────────────────────────
+ * Admin-Seite: Sicherheits-Audit-Log.
  *
- * Backend: GET /api/admin/audit?limit=&offset=&userId=
- * Zeigt alle sicherheitsrelevanten Ereignisse mit Pagination und Aktionsfilter.
+ * Zeigt alle sicherheitsrelevanten Ereignisse (Login, Logout, Passwortänderung,
+ * Angriffserkennung, Rollenänderungen, ...) mit Pagination und Aktionsfilter.
+ *
+ * Besonderheiten:
+ *  - INSERT-only Tabelle: Einträge können nicht gelöscht oder bearbeitet werden
+ *  - Aktionsfilter: clientseitig (kein extra Backend-Roundtrip)
+ *  - Alle 30 Sekunden automatisch aktualisiert (refetchInterval)
+ *  - login_anomaly: Rot hervorgehoben — deutet auf Brute-Force-Angriff hin
+ *
+ * Backend: GET /api/admin/audit?limit=50&offset=0
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { useState }    from 'react';
@@ -10,31 +21,34 @@ import { useQuery }    from '@tanstack/react-query';
 import apiClient       from '../../services/apiClient';
 
 /* ── Typen ──────────────────────────────────────────────────────── */
+/* AuditEntry: ein einzelner Audit-Log-Eintrag aus der Datenbank */
 interface AuditEntry {
   id:        number;
-  userId:    number | null;
-  username:  string | null;
-  email:     string | null;
-  action:    string;
-  ip:        string | null;
-  userAgent: string | null;
-  metadata:  Record<string, unknown>;
-  createdAt: string;
+  userId:    number | null;             /* null bei fehlgeschlagenen Logins (kein User gefunden) */
+  username:  string | null;             /* JOIN aus users-Tabelle — null bei gelöschten Usern */
+  email:     string | null;             /* E-Mail zum Zeitpunkt des Events */
+  action:    string;                    /* z.B. "login", "login_failed", "login_anomaly" */
+  ip:        string | null;             /* Client-IP-Adresse */
+  userAgent: string | null;             /* Browser/App-Informationen */
+  metadata:  Record<string, unknown>;  /* Zusatzinfos je nach Aktion (z.B. Anzahl Fehlversuche) */
+  createdAt: string;                    /* ISO-Timestamp wann das Event aufgezeichnet wurde */
 }
 
+/* AuditResponse: Backend-Antwort-Format mit Pagination-Info */
 interface AuditResponse {
   logs:  AuditEntry[];
-  total: number;
+  total: number; /* Gesamtanzahl aller Einträge (für Pagination) */
 }
 
 /* ── Aktions-Badge Farben ───────────────────────────────────────── */
+/* Mapping: Aktion → Tailwind-Klassen für farbige Badges in der Tabelle */
 const ACTION_COLORS: Record<string, string> = {
   login:              'bg-green-500/15 text-green-400',
   register:           'bg-blue-500/15 text-blue-400',
   logout:             'bg-white/10 text-white/50',
   logout_all:         'bg-orange-500/15 text-orange-400',
   login_failed:       'bg-red-500/15 text-red-400',
-  login_anomaly:      'bg-red-500/30 text-red-300 font-semibold',
+  login_anomaly:      'bg-red-500/30 text-red-300 font-semibold', /* Stärker hervorgehoben — gefährlichstes Event */
   password_changed:   'bg-yellow-500/15 text-yellow-400',
   account_deleted:    'bg-red-500/20 text-red-400',
   data_exported:      'bg-purple-500/15 text-purple-400',
@@ -43,9 +57,11 @@ const ACTION_COLORS: Record<string, string> = {
   admin_user_deleted: 'bg-red-500/20 text-red-500',
 };
 
+/* Anzahl Einträge pro Seite — höher als bei Users da Logs schneller wachsen */
 const PAGE_SIZE = 50;
 
 /* ── Hilfsfunktionen ─────────────────────────────────────────────── */
+/* ISO-Timestamp → deutsches Format mit Uhrzeit: "21.05.26 14:32:01" */
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('de-DE', {
     day: '2-digit', month: '2-digit', year: '2-digit',
@@ -53,6 +69,7 @@ function formatDate(iso: string) {
   });
 }
 
+/* Maschinenlesbarer Aktions-Code → lesbares Label für die Tabelle */
 function actionLabel(action: string) {
   const map: Record<string, string> = {
     login:              'Login',
@@ -60,7 +77,7 @@ function actionLabel(action: string) {
     logout:             'Logout',
     logout_all:         'Alle abmelden',
     login_failed:       'Login fehlgeschlagen',
-    login_anomaly:      '⚠ Angriff erkannt',
+    login_anomaly:      '⚠ Angriff erkannt',   /* ⚠ Symbol für sofortige visuelle Warnung */
     password_changed:   'Passwort geändert',
     account_deleted:    'Account gelöscht',
     data_exported:      'Daten exportiert',
@@ -68,39 +85,39 @@ function actionLabel(action: string) {
     sessions_revoked:   'Sessions widerrufen',
     admin_user_deleted: 'Admin: User gelöscht',
   };
-  return map[action] ?? action;
+  return map[action] ?? action; /* Fallback: unbekannter Aktions-Code direkt anzeigen */
 }
 
 /* ── Komponente ──────────────────────────────────────────────────── */
 export default function AdminAuditLogs() {
-  const [page,         setPage]         = useState(0);
-  const [actionFilter, setActionFilter] = useState('');
+  const [page,         setPage]         = useState(0);  /* Aktuelle Seite (0-basiert) */
+  const [actionFilter, setActionFilter] = useState(''); /* '' = kein Filter, sonst Aktions-Code */
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'audit', page, actionFilter],
+    queryKey: ['admin', 'audit', page, actionFilter], /* Seite im Key → neue Seite = neuer Cache-Eintrag */
     queryFn: async () => {
       const params: Record<string, string> = {
         limit:  String(PAGE_SIZE),
-        offset: String(page * PAGE_SIZE),
+        offset: String(page * PAGE_SIZE), /* Offset für Pagination: Seite 2 = Einträge 50-99 */
       };
       const { data } = await apiClient.get<AuditResponse>(
         '/admin/audit', { params },
       );
       return data;
     },
-    /* Alle 30s aktualisieren */
-    refetchInterval: 30_000,
+    refetchInterval: 30_000, /* Alle 30s automatisch neu laden — Audit-Log wächst ständig */
   });
 
-  const logs         = data?.logs ?? [];
-  const total        = data?.total ?? 0;
-  const totalPages   = Math.ceil(total / PAGE_SIZE);
+  const logs       = data?.logs  ?? [];  /* Fallback leeres Array wenn Daten noch nicht geladen */
+  const total      = data?.total ?? 0;   /* Fallback 0 für Pagination-Berechnung */
+  const totalPages = Math.ceil(total / PAGE_SIZE); /* Math.ceil: letzte Seite auch wenn unvollständig */
 
-  /* Clientseitiger Aktionsfilter (kein extra Backend-Roundtrip) */
+  /* Clientseitiger Aktionsfilter — filtert die bereits geladene Seite ohne neuen Backend-Request */
   const visible = actionFilter
-    ? logs.filter((l) => l.action === actionFilter)
-    : logs;
+    ? logs.filter((l) => l.action === actionFilter) /* Nur Einträge mit passendem Aktions-Code */
+    : logs; /* Kein Filter → alle Einträge der aktuellen Seite */
 
+  /* Alle einzigartigen Aktionen auf der aktuellen Seite für die Filter-Buttons */
   const allActions = Array.from(new Set(logs.map((l) => l.action))).sort();
 
   return (

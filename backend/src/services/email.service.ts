@@ -1,10 +1,22 @@
+/*
+ * services/email.service.ts
+ * ─────────────────────────────────────────────────────────────
+ * E-Mail-Versand via SMTP (nodemailer).
+ *
+ * Zwei Modi:
+ *  - Production: echtes SMTP (Gmail, SendGrid, etc.) aus ENV-Variablen
+ *  - Development ohne SMTP: Ethereal Test-Account — E-Mails gehen nicht raus,
+ *    werden als Preview-Link im Log angezeigt
+ *
+ * Transporter Singleton: SMTP-Verbindung wird einmal aufgebaut und wiederverwendet.
+ * ─────────────────────────────────────────────────────────────
+ */
+
 import nodemailer, { Transporter } from 'nodemailer';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 
-/* ── Transporter Singleton ───────────────────────────────────────
-   In Production: SMTP aus ENV.
-   In Development ohne SMTP-Config: Ethereal (Test-Account) oder Console-Log. */
+/* Singleton: einmal aufgebaut, dann wiederverwendet (verhindert neue Verbindung bei jeder E-Mail) */
 let transporter: Transporter | null = null;
 
 async function getTransporter(): Promise<Transporter> {

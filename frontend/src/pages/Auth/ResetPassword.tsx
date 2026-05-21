@@ -1,3 +1,17 @@
+/*
+ * pages/Auth/ResetPassword.tsx
+ * ─────────────────────────────────────────────────────────────
+ * "Passwort zurücksetzen"-Seite — aufgerufen über Reset-Link aus E-Mail.
+ *
+ * Flow:
+ *  1. URL enthält ?token=... — 128-stelliger Sicherheits-Token
+ *  2. Token-Validierung: fehlender/zu kurzer Token → sofortige Fehlermeldung
+ *  3. Nutzer gibt neues Passwort ein (Zod-Validierung)
+ *  4. POST /auth/reset-password → Backend prüft Token + setzt neues Passwort
+ *  5. success=true → Erfolgsansicht → nach 3s zur Login-Seite navigieren
+ * ─────────────────────────────────────────────────────────────
+ */
+
 import { useState }           from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm }            from 'react-hook-form';
@@ -5,6 +19,7 @@ import { zodResolver }        from '@hookform/resolvers/zod';
 import { z }                  from 'zod';
 import apiClient              from '../../services/apiClient';
 
+/* Passwort-Validierung: mind. 8 Zeichen, 1 Großbuchstabe, 1 Zahl + Bestätigungs-Match */
 const schema = z.object({
   password: z
     .string()
@@ -14,25 +29,27 @@ const schema = z.object({
   confirmPassword: z.string().min(1, 'Passwort bestätigen'),
 }).refine((d) => d.password === d.confirmPassword, {
   message: 'Passwörter stimmen nicht überein',
-  path:    ['confirmPassword'],
+  path:    ['confirmPassword'], /* Fehler an confirmPassword-Feld heften */
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.infer<typeof schema>; /* TypeScript-Typ aus Zod-Schema ableiten */
 
 export default function ResetPassword() {
-  const [searchParams]  = useSearchParams();
-  const navigate        = useNavigate();
-  const token           = searchParams.get('token') ?? '';
+  const [searchParams]  = useSearchParams();          /* URL-Query-Parameter lesen */
+  const navigate        = useNavigate();              /* Programmatische Navigation */
+  const token           = searchParams.get('token') ?? ''; /* Token aus ?token=... URL-Parameter */
 
-  const [serverError, setServerError]   = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [success, setSuccess]           = useState(false);
+  const [serverError, setServerError]   = useState<string | null>(null); /* Backend-Fehlermeldung */
+  const [showPassword, setShowPassword] = useState(false);               /* Passwort ein-/ausblenden */
+  const [success, setSuccess]           = useState(false);               /* Erfolgreiche Änderung */
 
+  /* react-hook-form mit Zod-Resolver: validiert Formular vor Submit */
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
-  // Ungültiger / fehlender Token — sofort Hinweis zeigen
+  /* Token-Vorabprüfung: ungültiger/fehlender Token → sofort Fehlermeldung ohne Backend-Request.
+     128 Zeichen: Backend generiert Token mit 64 Bytes = 128 Hex-Zeichen. */
   if (!token || token.length !== 128) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] px-4">
@@ -50,16 +67,18 @@ export default function ResetPassword() {
   }
 
   async function onSubmit(data: FormData) {
-    setServerError(null);
+    setServerError(null); /* Alte Fehlermeldung vor neuem Versuch löschen */
     try {
+      /* POST /auth/reset-password: Token + neues Passwort an Backend senden */
       await apiClient.post('/auth/reset-password', {
-        token,
+        token,               /* URL-Token — Backend validiert Gültigkeit und Ablaufzeit */
         password: data.password,
       });
-      setSuccess(true);
-      // Nach 3 Sekunden zur Login-Seite
+      setSuccess(true); /* Erfolgsansicht anzeigen */
+      /* Nach 3 Sekunden zur Login-Seite — genug Zeit die Erfolgsmeldung zu lesen */
       setTimeout(() => navigate('/login'), 3000);
     } catch (err: unknown) {
+      /* Backend-Fehlermeldung extrahieren (z.B. "Token abgelaufen") */
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
         'Passwort konnte nicht geändert werden. Bitte fordere einen neuen Link an.';

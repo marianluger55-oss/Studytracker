@@ -1,16 +1,22 @@
 /*
  * pages/Admin/AdminLayout.tsx
+ * ─────────────────────────────────────────────────────────────
  * Eigenständiges Layout für das Admin-Panel.
- * Kein Sidebar, kein App-Design — klare, professionelle Oberfläche.
+ * Kein Sidebar, kein App-Design — klare, professionelle Top-Navbar.
+ *
+ * Verwendet NavLink statt Link → aktiver Tab wird automatisch hervorgehoben.
+ * children: Admin-Seiteninhalt (AdminDashboard, AdminUsers, AdminAuditLogs)
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { NavLink, useNavigate }  from 'react-router-dom';
 import { useAuthStore }          from '../../store/authStore';
 import apiClient                 from '../../services/apiClient';
 
+/* Navigation-Einträge für die Top-Navbar — icon + Label + Route */
 const navItems = [
   {
-    to: '/admin/dashboard',
+    to: '/admin/dashboard', /* Route zum Dashboard */
     label: 'Übersicht',
     icon: (
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
@@ -22,7 +28,7 @@ const navItems = [
     ),
   },
   {
-    to: '/admin/users',
+    to: '/admin/users', /* Route zur Benutzerverwaltung */
     label: 'Benutzer',
     icon: (
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
@@ -33,7 +39,7 @@ const navItems = [
     ),
   },
   {
-    to: '/admin/audit',
+    to: '/admin/audit', /* Route zum Audit-Log */
     label: 'Logs',
     icon: (
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
@@ -45,11 +51,14 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const user     = useAuthStore((s) => s.user);
+  const user     = useAuthStore((s) => s.user); /* Admin-Nutzer für E-Mail-Anzeige in Navbar */
 
   async function handleLogout() {
-    try { await apiClient.post('/auth/logout'); } catch { /* ignore */ }
+    /* Logout-Request senden um Refresh-Token-Cookie zu löschen */
+    try { await apiClient.post('/auth/logout'); } catch { /* Netzwerkfehler ignorieren */ }
+    /* Lokalen Auth-State löschen — immer, auch bei Netzwerkfehler */
     useAuthStore.getState().clearAuth();
+    /* replace: kein Back-Button zurück zum Admin-Panel */
     navigate('/admin/login', { replace: true });
   }
 

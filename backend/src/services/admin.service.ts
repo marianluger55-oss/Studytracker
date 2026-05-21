@@ -1,46 +1,64 @@
 /*
  * services/admin.service.ts
+ * ─────────────────────────────────────────────────────────────
  * Datenbankabfragen für das Admin-Panel.
+ *
+ * Enthält:
+ *  - getAllUsers:       Paginierte Benutzerliste mit Suche + Rollenfilter
+ *  - getPlatformStats: Plattform-weite Kennzahlen (Gesamt-User, Sessions, heute)
+ *  - getGrowthData:    Neue Nutzer + Sessions pro Tag (letzte 14 Tage)
+ *  - getRecentActivity: Letzte Ereignisse aus 24h (Sessions + Registrierungen)
+ *  - getUserDetail:    Vollständiges Nutzerprofil mit letzten 10 Sessions
+ *  - revokeUserSessions: Alle Refresh-Tokens eines Nutzers löschen
+ *  - setUserRole:      Rolle eines Nutzers ändern (user ↔ admin)
+ *  - softDeleteUser:   Nutzer soft-löschen + Tokens invalidieren
+ *  - getAuditLogs:     Audit-Log-Einträge (delegiert an audit.service)
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { pool } from '../db/pool';
 
 /* ── getAllUsers ──────────────────────────────────────────────── */
-/* Paginiert, mit optionaler Volltextsuche + Rollenfilter */
+/* Paginiert, mit optionaler Volltextsuche + Rollenfilter.
+   Dynamisches SQL: WHERE-Klausel wird nur hinzugefügt wenn Filter gesetzt. */
 export async function getAllUsers(
   limit      = 50,
   offset     = 0,
-  search     = '',
-  roleFilter = '',
+  search     = '',    /* Freitext-Suche in E-Mail und Nutzernamen */
+  roleFilter = '',    /* 'user' | 'admin' | '' für alle */
 ) {
-  const where: string[] = [];
-  const p: unknown[]    = [];
+  const where: string[] = []; /* Sammlung aller WHERE-Bedingungen */
+  const p: unknown[]    = []; /* Bind-Parameter für die Query */
 
   if (search) {
-    p.push(`%${search}%`);
+    p.push(`%${search}%`);    /* ILIKE-Muster mit Wildcards */
+    /* ILIKE: case-insensitiv — sucht in E-Mail UND Nutzername gleichzeitig */
     where.push(`(u.email ILIKE $${p.length} OR u.username ILIKE $${p.length})`);
   }
   if (roleFilter) {
     p.push(roleFilter);
-    where.push(`u.role = $${p.length}`);
+    where.push(`u.role = $${p.length}`); /* Exakter Rollenvergleich */
   }
 
+  /* WHERE nur wenn mindestens eine Bedingung — sonst leeres String */
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+  /* Parallel: Daten und Gesamtanzahl gleichzeitig laden (schneller als nacheinander) */
   const [rows, count] = await Promise.all([
     pool.query(
       `SELECT
          u.id, u.email, u.username, u.role, u.created_at, u.deleted_at,
-         COUNT(s.id)::integer                   AS session_count,
-         COALESCE(SUM(s.duration), 0)::integer  AS total_seconds
+         COUNT(s.id)::integer                   AS session_count,   -- Anzahl Sessions pro User
+         COALESCE(SUM(s.duration), 0)::integer  AS total_seconds    -- Gesamtlernzeit
        FROM users u
-       LEFT JOIN sessions s ON s.user_id = u.id
+       LEFT JOIN sessions s ON s.user_id = u.id  -- LEFT JOIN: User ohne Sessions erscheinen auch
        ${whereSQL}
        GROUP BY u.id
-       ORDER BY u.created_at DESC
-       LIMIT $${p.length + 1} OFFSET $${p.length + 2}`,
+       ORDER BY u.created_at DESC  -- Neueste Nutzer oben
+       LIMIT $${p.length + 1} OFFSET $${p.length + 2}`,  -- Pagination-Parameter am Ende
       [...p, limit, offset],
     ),
+    /* COUNT für Pagination: wieviele Nutzer total (ohne Limit) */
     pool.query(
       `SELECT COUNT(DISTINCT u.id)::integer AS total FROM users u ${whereSQL}`,
       p,
