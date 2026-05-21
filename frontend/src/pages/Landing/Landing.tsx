@@ -26,7 +26,7 @@
  */
 
 import {
-  useState, useEffect, useRef, useCallback,
+  useState, useEffect, useRef, useCallback, type ReactNode,
 } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -588,7 +588,7 @@ function Typewriter() {
    Federt zurück beim Verlassen.
    ═══════════════════════════════════════════════════════════════ */
 function MagneticButton({ children, className = '', to }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   to: string;
 }) {
@@ -990,8 +990,8 @@ function MarqueeStrip() {
    FeatureCard
    Hover-Spotlight folgt der genauen Mausposition.
    ═══════════════════════════════════════════════════════════════ */
-function FeatureCard({ gradient, emoji, title, description, tags, delay = 0 }: {
-  gradient: string; emoji: string; title: string; description: string;
+function FeatureCard({ gradient, icon, title, description, tags, delay = 0 }: {
+  gradient: string; icon: ReactNode; title: string; description: string;
   tags: string[]; delay?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1031,12 +1031,12 @@ function FeatureCard({ gradient, emoji, title, description, tags, delay = 0 }: {
         />
       )}
 
-      {/* Icon-Badge */}
+      {/* Icon */}
       <motion.div
-        whileHover={{ scale: 1.12, rotate: 5 }}
-        className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center mb-5 shadow-lg`}
+        whileHover={{ scale: 1.08 }}
+        className={`w-10 h-10 mb-5 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center shadow-md`}
       >
-        <span className="text-xl">{emoji}</span>
+        {icon}
       </motion.div>
 
       {/* Titel */}
@@ -1069,15 +1069,41 @@ function FeaturesSection() {
   const headerInView = useFramerInView(headerRef, { once: true, amount: 0.3 });
 
   const features = [
-    { gradient: 'from-pink-500 to-rose-500', emoji: '⏱️',
+    {
+      gradient: 'from-pink-500 to-rose-500',
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <circle cx="10" cy="10" r="7" />
+          <path d="M10 6v4l2.5 2.5" />
+          <path d="M7.5 2.5h5" />
+        </svg>
+      ),
       title: 'Timer der nicht nervt', tags: ['Automatisch', 'Pausieren', 'Kategorien'],
-      description: 'Ein Klick — und du läufst. Kein kompliziertes Setup. Einfach loslegen und lernen.' },
-    { gradient: 'from-fuchsia-500 to-purple-500', emoji: '📊',
+      description: 'Ein Klick — und du läufst. Kein kompliziertes Setup. Einfach loslegen und lernen.',
+    },
+    {
+      gradient: 'from-fuchsia-500 to-purple-500',
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <path d="M3 14l4-5 4 3 4-6" />
+          <path d="M2 17h16" />
+        </svg>
+      ),
       title: 'Zahlen die motivieren', tags: ['Wöchentlich', 'Vergleich', 'Charts'],
-      description: 'Sieh schwarz auf weiß: Diese Woche 4 Stunden mehr als letzte Woche. Das fühlt sich gut an.' },
-    { gradient: 'from-violet-500 to-indigo-500', emoji: '🎯',
+      description: 'Sieh schwarz auf weiß: Diese Woche 4 Stunden mehr als letzte Woche. Das fühlt sich gut an.',
+    },
+    {
+      gradient: 'from-violet-500 to-indigo-500',
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <circle cx="10" cy="10" r="7" />
+          <circle cx="10" cy="10" r="3" />
+          <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" />
+        </svg>
+      ),
       title: 'Ziele die Spaß machen', tags: ['Streaks', 'Achievements', 'Erinnerungen'],
-      description: 'Setz Wochenziele und lass StudyTracker mitfiebern. Streaks, Meilensteine — gutes Gefühl garantiert.' },
+      description: 'Setz Wochenziele und lass StudyTracker mitfiebern. Streaks, Meilensteine — gutes Gefühl garantiert.',
+    },
   ];
 
   return (
