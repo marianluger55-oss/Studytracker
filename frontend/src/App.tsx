@@ -83,6 +83,7 @@ const AdminAuditLogs  = lazy(() => import('./pages/Admin/AdminAuditLogs'));
 const Impressum   = lazy(() => import('./pages/Legal/Impressum'));
 const Datenschutz = lazy(() => import('./pages/Legal/Datenschutz'));
 const AGB         = lazy(() => import('./pages/Legal/AGB'));
+const Kontakt     = lazy(() => import('./pages/Legal/Kontakt'));
 
 /* ── Lade-Fallback für Suspense ──────────────────────────────── */
 // Wird kurz angezeigt während eine lazy-geladene Seite heruntergeladen wird
@@ -264,6 +265,7 @@ function AppInner() {
         <Route path="/impressum"   element={<Suspense fallback={<PageLoader />}><Impressum /></Suspense>}   />
         <Route path="/datenschutz" element={<Suspense fallback={<PageLoader />}><Datenschutz /></Suspense>} />
         <Route path="/agb"         element={<Suspense fallback={<PageLoader />}><AGB /></Suspense>}         />
+        <Route path="/kontakt"     element={<Suspense fallback={<PageLoader />}><Kontakt /></Suspense>}     />
 
         {/* ── Admin-Panel (eigene Website, eigenes Login) ── */}
         {/* Komplett getrennt von der Haupt-App — eigenes Layout, eigener Auth-Flow */}
