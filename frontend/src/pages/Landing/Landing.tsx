@@ -141,8 +141,8 @@ const GLOBAL_CSS = `
    ═══════════════════════════════════════════════════════════════ */
 function FilmGrain() {
   return (
-    /* fixed: immer über dem Inhalt, pointer-events none damit Klicks durchgehen */
-    <div className="fixed inset-0 z-[999] pointer-events-none overflow-hidden">
+    /* hidden md:block: SVG feTurbulence ist auf Mobile ein GPU-Killer — nur Desktop */
+    <div className="hidden md:block fixed inset-0 z-[999] pointer-events-none overflow-hidden">
       {/* grain-layer: verschiebt sich per CSS-Animation (zufälliges Rauschen-Muster) */}
       <svg
         className="grain-layer w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4"
@@ -204,9 +204,9 @@ function GridBackground() {
     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#050508]">
       {/* ── Aurora-Blobs ────────────────────────────────────── */}
 
-      {/* Blob 1: oben links — pink */}
+      {/* Blob 1: oben links — pink — hidden on mobile (GPU-intensiv) */}
       <motion.div
-        className="absolute w-[700px] h-[500px] rounded-full blur-[120px] opacity-[0.12]"
+        className="hidden md:block absolute w-[700px] h-[500px] rounded-full blur-[120px] opacity-[0.12]"
         /* blur-[120px]: extrem weich → wirkt wie Umgebungslicht, nicht wie Form */
         style={{
           background:
@@ -226,9 +226,9 @@ function GridBackground() {
         }} /* 18s-Schleife */
       />
 
-      {/* Blob 2: oben rechts — lila */}
+      {/* Blob 2: oben rechts — lila — hidden on mobile */}
       <motion.div
-        className="absolute w-[600px] h-[600px] rounded-full blur-[140px] opacity-[0.10]"
+        className="hidden md:block absolute w-[600px] h-[600px] rounded-full blur-[140px] opacity-[0.10]"
         style={{
           background:
             "radial-gradient(ellipse, #a855f7 0%, transparent 70%)" /* Lila */,
@@ -247,9 +247,9 @@ function GridBackground() {
         }} /* 22s — anderer Rhythmus */
       />
 
-      {/* Blob 3: unten Mitte — indigo */}
+      {/* Blob 3: unten Mitte — indigo — hidden on mobile */}
       <motion.div
-        className="absolute w-[800px] h-[400px] rounded-full blur-[160px] opacity-[0.08]"
+        className="hidden md:block absolute w-[800px] h-[400px] rounded-full blur-[160px] opacity-[0.08]"
         /* opacity[0.08]: schwächster Blob — liegt im Hintergrund */
         style={{
           background:
@@ -439,7 +439,13 @@ function CustomCursor() {
   const [visible, setVisible] =
     useState(false); /* false bis erste Mausbewegung */
 
+  /* Auf Touch-Geräten (pointer: coarse) keinen Cursor-Listener registrieren */
+  const isTouch =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches;
+
   useEffect(() => {
+    if (isTouch) return; /* Touch-Gerät: kein mousemove-Listener nötig */
     const onMove = (e: MouseEvent) => {
       mouseX.set(e.clientX); /* Rohe Viewport-Koordinaten direkt schreiben */
       mouseY.set(e.clientY);
@@ -463,7 +469,11 @@ function CustomCursor() {
     mouseX,
     mouseY,
     visible,
+    isTouch,
   ]); /* visible in Deps damit setVisible korrekt referenziert */
+
+  /* Touch-Gerät: nichts rendern — Spring-Animationen laufen sonst trotzdem */
+  if (isTouch) return null;
 
   return (
     <>
@@ -622,7 +632,7 @@ function Navbar() {
       }} /* Expo-Out Kurve */
       className={`sticky top-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-black/60 backdrop-blur-xl border-b border-white/8 shadow-[0_8px_32px_rgba(0,0,0,.4)]"
+          ? "bg-black/70 backdrop-blur-md md:backdrop-blur-xl border-b border-white/8 shadow-[0_8px_32px_rgba(0,0,0,.4)]"
           : /* Glas-Effekt: halbtransparentes Schwarz + Blur + Border + Schatten */
             "bg-transparent" /* Transparent wenn oben */
       }`}
@@ -910,7 +920,7 @@ function MagneticButton({
 function HeroMockupCard() {
   return (
     /* Glasmorphismus-Karte: halbtransparentes Weiß + Blur */
-    <div className="bg-white/[0.06] backdrop-blur-2xl rounded-3xl p-5 w-full max-w-xs mx-auto border border-white/12 shadow-2xl">
+    <div className="bg-white/[0.08] md:bg-white/[0.06] md:backdrop-blur-2xl rounded-3xl p-5 w-full max-w-xs mx-auto border border-white/12 shadow-2xl">
       {/* Header: Titel + Live-Badge */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -1900,7 +1910,7 @@ function AllInOneSection() {
             animate={rightIn ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="bg-white/[0.04] backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+            <div className="bg-white/[0.06] md:bg-white/[0.04] md:backdrop-blur-xl rounded-2xl p-6 border border-white/10">
               {/* Chart-Header */}
               <div className="flex items-center justify-between mb-1">
                 <p className="text-white font-bold text-sm">Wochenübersicht</p>
