@@ -8,7 +8,11 @@
 
 export default function Impressum() {
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="min-h-screen py-8 sm:py-12 px-4">
+    <div className="max-w-xl mx-auto space-y-6">
+      <a href="/" className="inline-flex items-center gap-1.5 text-sm text-[var(--text-3)] hover:text-[var(--text)] transition-colors mb-2">
+        ← Zurück zur Startseite
+      </a>
       {/* ── Header ── */}
       <div>
         <h1 className="page-title">Impressum</h1>
@@ -42,6 +46,7 @@ export default function Impressum() {
           keine Gewähr übernommen werden.
         </p>
       </div>
+    </div>
     </div>
   );
 }
