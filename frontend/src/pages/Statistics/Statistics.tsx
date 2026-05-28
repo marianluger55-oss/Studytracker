@@ -30,19 +30,8 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import { useSessions }   from '../../hooks/useSessions';
 import { useCategories } from '../../hooks/useCategories';
 import { useStats }      from '../../hooks/useStats';
+import { useSettingsStore } from '../../store/settingsStore';
 import { getWeekDays, getWeeklyMinutes, getTodayMinutes } from '../../utils/time';
-
-/* Hardcodierte Dark-Palette — abgestimmt auf Landing/Login/Dashboard */
-const DC = {
-  primary:        'rgba(244,114,182,0.80)',  /* Pink — Hauptbalken (aktiver Hover) */
-  primaryFaded:   'rgba(139, 92,246,0.28)',  /* Violett gedämpft — Ruhezustand Balken */
-  secondary:      'rgba(192,132,252,0.85)',  /* Violett — Sekundärbalken (Monats-Chart) */
-  secondaryFaded: 'rgba(129,140,248,0.28)',  /* Indigo gedämpft — Ruhezustand Monatsbalken */
-  tick:           'rgba(255,255,255,0.35)',  /* Achsenbeschriftungen */
-  grid:           'rgba(255,255,255,0.06)',  /* Gitterlinien (sehr dezent) */
-  border:         '#050508',                /* Donut-Segmentrand — trennt Farben visuell */
-  tooltipBg:      'rgba(10,10,18,0.95)',    /* Tooltip-Hintergrund — fast schwarz */
-};
 
 /* Chart.js Komponenten registrieren — muss einmal pro App aufgerufen werden */
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
@@ -76,6 +65,25 @@ function heatClass(mins: number) {
 }
 
 export default function Statistics() {
+  /* ── Theme — steuert Chart-Farben ───────────────────────── */
+  const isDark = useSettingsStore((s) => s.settings.theme === 'dark');
+
+  /* ── Chart-Farbpalette — theme-abhängig ─────────────────── */
+  const DC = {
+    primary:        'rgba(244,114,182,0.85)',
+    primaryFaded:   isDark ? 'rgba(139,92,246,0.28)'      : 'rgba(139,92,246,0.22)',
+    secondary:      'rgba(192,132,252,0.90)',
+    secondaryFaded: isDark ? 'rgba(129,140,248,0.28)'     : 'rgba(129,140,248,0.22)',
+    tick:           isDark ? 'rgba(255,255,255,0.35)'     : 'rgba(76,61,114,0.65)',
+    grid:           isDark ? 'rgba(255,255,255,0.06)'     : 'rgba(139,92,246,0.10)',
+    border:         isDark ? '#050508'                    : '#ffffff',
+    tooltipBg:      isDark ? 'rgba(10,10,18,0.95)'        : 'rgba(255,255,255,0.97)',
+    tooltipTitle:   isDark ? 'rgba(255,255,255,0.50)'     : 'rgba(76,61,114,0.70)',
+    tooltipBody:    isDark ? 'rgba(255,255,255,0.85)'     : 'rgba(30,16,51,0.90)',
+    tooltipBorder:  isDark ? 'rgba(255,255,255,0.08)'     : 'rgba(139,92,246,0.20)',
+    legendColor:    isDark ? 'rgba(255,255,255,0.35)'     : 'rgba(76,61,114,0.65)',
+  };
+
   /* ── Server-State ────────────────────────────────────────── */
   const { sessions,   isLoading: sessionsLoading }   = useSessions();    /* Alle Lernsessions */
   const { categories, isLoading: categoriesLoading } = useCategories();  /* Kategorien mit Lernzeit */
@@ -113,9 +121,9 @@ export default function Statistics() {
     plugins: { legend: { display: false },
       tooltip: {
         backgroundColor: DC.tooltipBg,
-        titleColor:      DC.tick,
-        bodyColor:       'rgba(255,255,255,0.85)',
-        borderColor:     'rgba(255,255,255,0.08)',
+        titleColor:      DC.tooltipTitle,
+        bodyColor:       DC.tooltipBody,
+        borderColor:     DC.tooltipBorder,
         borderWidth: 1,
         padding:     10,
       },
@@ -176,7 +184,7 @@ export default function Statistics() {
     plugins: {
       legend: {
         position: 'right' as const,
-        labels: { color: DC.tick, boxWidth: 10, padding: 14, font: { size: 11 } },
+        labels: { color: DC.legendColor, boxWidth: 10, padding: 14, font: { size: 11 } },
       },
     },
     cutout: '68%',

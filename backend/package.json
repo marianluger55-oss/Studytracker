@@ -10,6 +10,7 @@
     "start:prod": "node dist/db/migrate.js && node dist/index.js",
     "db:init": "ts-node src/db/init.ts",
     "db:migrate": "ts-node src/db/migrate.ts",
+    "db:seed": "ts-node src/db/seeds/presentation.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
